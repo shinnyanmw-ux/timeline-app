@@ -728,7 +728,124 @@ body {
 }
 .logout-btn:hover { color: var(--ng); border-color: var(--ng); }
 
-#appScreen { display: none; width: 100vw; height: 100vh; flex-direction: row; overflow: hidden; flex-shrink: 0; }</style>
+#appScreen { display: none; width: 100vw; height: 100vh; flex-direction: row; overflow: hidden; flex-shrink: 0; }
+
+/* ══════════════════════════════
+   モバイルレイアウト
+══════════════════════════════ */
+@media (max-width: 768px) {
+  #appScreen {
+    flex-direction: column;
+  }
+
+  /* サイドバー・いま・つぎパネルは非表示 */
+  .sidebar,
+  .now-next-panel {
+    display: none !important;
+  }
+
+  /* メインエリアを全幅に */
+  .main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    min-width: 0;
+  }
+
+  /* ヘッダーをコンパクトに */
+  .main-header {
+    padding: 10px 16px 8px;
+    gap: 8px;
+  }
+  .main-header-date  { font-size: 22px; }
+  .main-header-youbi { font-size: 22px; }
+  .main-header-clock { font-size: 22px; }
+  .auth-area { display: none; }
+
+  /* タブバー */
+  .mobile-tabs {
+    display: flex !important;
+    background: var(--panel-bg);
+    border-bottom: 1.5px solid var(--border);
+    flex-shrink: 0;
+  }
+  .mobile-tab {
+    flex: 1;
+    padding: 12px 8px;
+    text-align: center;
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 900;
+    color: var(--muted);
+    background: none;
+    border: none;
+    border-bottom: 3px solid transparent;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .mobile-tab.active {
+    color: var(--now);
+    border-bottom-color: var(--now);
+  }
+
+  /* タブコンテンツ */
+  .mobile-content {
+    flex: 1;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* タイムラインタブ */
+  .tab-timeline { display: flex; flex-direction: column; height: 100%; }
+  .tab-timeline.hidden { display: none; }
+
+  /* いま・つぎタブ */
+  .tab-nowNext {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    overflow-y: auto;
+    padding: 20px 24px;
+    gap: 20px;
+  }
+  .tab-nowNext.hidden { display: none; }
+  .tab-nowNext .nn-row { width: 100%; }
+  .tab-nowNext .nn-label { font-size: 14px; }
+  .tab-nowNext .nn-val { font-size: 28px; margin-top: 6px; }
+  .tab-nowNext .nn-div { width: 100%; height: 1px; background: var(--border); }
+  .tab-nowNext .nn-timer-section { align-items: center; }
+  .tab-nowNext .nn-timer-wrap { width: 180px; height: 180px; }
+  .tab-nowNext .nn-timer-svg { width: 180px; height: 180px; }
+  .tab-nowNext .nn-timer-min { font-size: 48px; }
+  .tab-nowNext .nn-timer-unit { font-size: 16px; }
+  .tab-nowNext .nn-timer-label { font-size: 14px; }
+
+  /* フッターボタン */
+  .mobile-footer {
+    display: flex !important;
+    padding: 12px 16px;
+    background: var(--panel-bg);
+    border-top: 1.5px solid var(--border);
+    gap: 10px;
+    flex-shrink: 0;
+  }
+  .mobile-footer .add-btn { flex: 1; }
+
+  /* PCのみの要素を非表示 */
+  .timeline-wrap::before,
+  .timeline-wrap::after { height: 40px; }
+}
+
+/* PCではモバイル専用要素を非表示 */
+@media (min-width: 769px) {
+  .mobile-tabs   { display: none; }
+  .mobile-footer { display: none; }
+  .tab-timeline,
+  .tab-nowNext   { display: contents; }
+}
+</style>
 </head>
 <body>
 
@@ -795,10 +912,54 @@ body {
     </div>
   </div>
 
-  <div class="timeline-wrap">
-    <div class="timeline-scroll" id="timelineScroll">
-      <div class="timeline" id="timeline"></div>
+  <!-- モバイルタブバー -->
+  <div class="mobile-tabs">
+    <button class="mobile-tab active" id="tabTimeline" onclick="switchTab('timeline')">📅 タイムライン</button>
+    <button class="mobile-tab" id="tabNowNext" onclick="switchTab('nowNext')">⏱ いま・つぎ</button>
+  </div>
+
+  <div class="mobile-content">
+    <!-- タイムラインタブ -->
+    <div class="tab-timeline" id="tabContentTimeline">
+      <div class="timeline-wrap">
+        <div class="timeline-scroll" id="timelineScroll">
+          <div class="timeline" id="timeline"></div>
+        </div>
+      </div>
     </div>
+
+    <!-- いま・つぎタブ（モバイル用） -->
+    <div class="tab-nowNext hidden" id="tabContentNowNext">
+      <div class="nn-row">
+        <div class="nn-label">いま</div>
+        <div class="nn-value" id="nnNowMobile">—</div>
+      </div>
+      <div class="nn-div"></div>
+      <div class="nn-row">
+        <div class="nn-label">つぎ</div>
+        <div class="nn-value" id="nnNextMobile">—</div>
+      </div>
+      <div class="nn-div"></div>
+      <div class="nn-timer-section">
+        <div class="nn-timer-label">あと</div>
+        <div class="nn-timer-wrap">
+          <svg class="nn-timer-svg" viewBox="0 0 128 128">
+            <circle class="nn-timer-track" cx="64" cy="64" r="54"/>
+            <circle class="nn-timer-arc" id="nnArcMobile" cx="64" cy="64" r="54"
+              stroke-dasharray="0 339" stroke-dashoffset="0"/>
+          </svg>
+          <div class="nn-timer-center">
+            <div class="nn-timer-min" id="nnMinMobile">—</div>
+            <div class="nn-timer-unit" id="nnUnitMobile">ふん</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- モバイルフッター -->
+  <div class="mobile-footer">
+    <button class="add-btn" onclick="openAddModal()">＋ よていを入れる</button>
   </div>
 </div>
 
@@ -1272,38 +1433,40 @@ function updateNowNext(totalMin) {
   // 残り分
   const remMin = segEnd !== null ? Math.max(0, Math.ceil(segEnd - totalMin)) : null;
 
-  // いま
+  // いま（PC + モバイル）
   const nowEl = document.getElementById('nnNow');
-  if (isJiyu || !currentEv) {
-    nowEl.textContent = 'じゆう';
-    nowEl.className   = 'nn-value is-jiyu';
-  } else {
-    nowEl.textContent = currentEv.emoji + ' ' + currentEv.name;
-    nowEl.className   = 'nn-value';
-  }
+  const nowElM = document.getElementById('nnNowMobile');
+  const nowText = (isJiyu || !currentEv) ? 'じゆう' : currentEv.emoji + ' ' + currentEv.name;
+  const nowClass = (isJiyu || !currentEv) ? 'nn-value is-jiyu' : 'nn-value';
+  if (nowEl)  { nowEl.textContent = nowText;  nowEl.className = nowClass; }
+  if (nowElM) { nowElM.textContent = nowText; nowElM.className = nowClass; }
 
-  // つぎ
+  // つぎ（PC + モバイル）
   const nextEl = document.getElementById('nnNext');
-  nextEl.textContent = nextEv ? nextEv.emoji + ' ' + nextEv.name : '—';
-  nextEl.className   = 'nn-value';
+  const nextElM = document.getElementById('nnNextMobile');
+  const nextText = nextEv ? nextEv.emoji + ' ' + nextEv.name : '—';
+  if (nextEl)  { nextEl.textContent = nextText;  nextEl.className = 'nn-value'; }
+  if (nextElM) { nextElM.textContent = nextText; nextElM.className = 'nn-value'; }
 
-  // タイマー
-  const minEl  = document.getElementById('nnMin');
-  const unitEl = document.getElementById('nnUnit');
-  const arc    = document.getElementById('nnArc');
+  // タイマー（PC + モバイル）
+  const minEl   = document.getElementById('nnMin');
+  const unitEl  = document.getElementById('nnUnit');
+  const arc     = document.getElementById('nnArc');
+  const minElM  = document.getElementById('nnMinMobile');
+  const unitElM = document.getElementById('nnUnitMobile');
+  const arcM    = document.getElementById('nnArcMobile');
 
   if (remMin === null) {
-    minEl.textContent  = '—';
-    unitEl.textContent = '';
-    arc.style.strokeDasharray = `0 ${CIRC}`;
-    arc.className = 'nn-timer-arc';
+    [minEl, minElM].forEach(el  => { if(el) el.textContent = '—'; });
+    [unitEl, unitElM].forEach(el => { if(el) el.textContent = ''; });
+    [arc, arcM].forEach(el => { if(el) { el.style.strokeDasharray = `0 ${CIRC}`; el.className = 'nn-timer-arc'; }});
   } else {
-    minEl.textContent  = remMin;
-    unitEl.textContent = 'ふん';
-    const ratio = segTotal > 0 ? remMin / segTotal : 0;
+    const ratio  = segTotal > 0 ? remMin / segTotal : 0;
     const filled = CIRC * ratio;
-    arc.style.strokeDasharray = `${filled} ${CIRC - filled}`;
-    arc.className = 'nn-timer-arc' + (isJiyu ? ' jiyu' : '');
+    const arcCls = 'nn-timer-arc' + (isJiyu ? ' jiyu' : '');
+    [minEl, minElM].forEach(el  => { if(el) el.textContent = remMin; });
+    [unitEl, unitElM].forEach(el => { if(el) el.textContent = 'ふん'; });
+    [arc, arcM].forEach(el => { if(el) { el.style.strokeDasharray = `${filled} ${CIRC - filled}`; el.className = arcCls; }});
   }
 }
 
@@ -1545,6 +1708,17 @@ document.getElementById('nextMonth').addEventListener('click', () => {
   if (calViewMonth > 11) { calViewMonth = 0; calViewYear++; }
   buildMonthCalendar();
 });
+
+// ═══════════════════════════════════
+// モバイルタブ切り替え
+// ═══════════════════════════════════
+function switchTab(tab) {
+  const isTl = tab === 'timeline';
+  document.getElementById('tabContentTimeline').classList.toggle('hidden', !isTl);
+  document.getElementById('tabContentNowNext').classList.toggle('hidden', isTl);
+  document.getElementById('tabTimeline').classList.toggle('active', isTl);
+  document.getElementById('tabNowNext').classList.toggle('active', !isTl);
+}
 
 // ═══════════════════════════════════
 // 初期化（Firebaseからデータ受け取り後に呼ばれる）
