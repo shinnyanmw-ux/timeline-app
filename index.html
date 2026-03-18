@@ -104,6 +104,7 @@ window._syncFromFirestore = function() {
 
 window._initApp = function() {
   allEvents = window._events || [];
+  events = getEventsForDate(selectedDate);
   updateHeader();
   buildMonthCalendar();
   buildSidebarList();
