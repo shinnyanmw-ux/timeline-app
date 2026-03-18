@@ -84,14 +84,26 @@ function loadData() {
     if (window._appReady) {
       window._syncFromFirestore();
     } else {
-      window._initApp();
+      // _initAppが定義されるまで待つ
+      const tryInit = () => {
+        if (typeof window._initApp === 'function') {
+          window._initApp();
+        } else {
+          setTimeout(tryInit, 50);
+        }
+      };
+      tryInit();
     }
   }, e => {
     console.error('sync error:', e);
     window._extraEvents     = [];
     window._baseOverrides   = {};
     window._deletedBaseKeys = [];
-    window._initApp();
+    const tryInit = () => {
+      if (typeof window._initApp === 'function') window._initApp();
+      else setTimeout(tryInit, 50);
+    };
+    tryInit();
   });
 }
 </script>
