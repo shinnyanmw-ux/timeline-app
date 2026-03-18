@@ -42,6 +42,7 @@ console.log   = (...a) => { _origLog(...a);   window._log(a.join(' '), 'info'); 
 
 window.saveToFirestore = async () => {
   try {
+    window._ignoreNextSnapshot = true; // 自分の書き込みによるsnapshotを無視
     await DATA_REF.set({
       extraEvents:     window._extraEvents     || [],
       baseOverrides:   window._baseOverrides   || {},
@@ -64,6 +65,11 @@ auth.onAuthStateChanged(user => {
     console.log('starting loadData...');
     if (_unsubscribe) _unsubscribe();
     _unsubscribe = DATA_REF.onSnapshot(snap => {
+      // 自分の書き込みによるsnapshotは無視（ローカル状態が正）
+      if (window._ignoreNextSnapshot) {
+        window._ignoreNextSnapshot = false;
+        return;
+      }
       console.log('snapshot received, exists=' + snap.exists);
       const d = snap.exists ? snap.data() : {};
       window._extraEvents     = d.extraEvents     || [];
