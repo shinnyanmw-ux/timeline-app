@@ -89,6 +89,45 @@ auth.onAuthStateChanged(user => {
   }
 });
 </script>
+<!-- アプリ初期化関数（Firebaseより先に定義） -->
+<script>
+window._appReady = false;
+
+window._syncFromFirestore = function() {
+  extraEvents     = window._extraEvents     || [];
+  baseOverrides   = window._baseOverrides   || {};
+  deletedBaseKeys = window._deletedBaseKeys || [];
+  events = getEventsForDate(selectedDate);
+  buildTimeline();
+  buildMonthCalendar();
+  buildSidebarList();
+  updateNowLine();
+};
+
+window._initApp = function() {
+  console.log('_initApp called');
+  extraEvents     = window._extraEvents     || [];
+  baseOverrides   = window._baseOverrides   || {};
+  deletedBaseKeys = window._deletedBaseKeys || [];
+  try {
+    updateHeader();
+    buildMonthCalendar();
+    buildSidebarList();
+    buildTimeline();
+    updateNowLine();
+    console.log('_initApp complete');
+    window._appReady = true;
+  } catch(e) {
+    console.error('_initApp error: ' + e.message);
+  }
+  setInterval(() => {
+    updateNowLine();
+    buildSidebarList();
+    if (dateStr(realToday) !== dateStr(new Date())) location.reload();
+  }, 10000);
+};
+</script>
+
 <style>
 @import url('https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@400;700;900&display=swap');
 
@@ -1566,39 +1605,6 @@ document.getElementById('nextMonth').addEventListener('click', () => {
 // ═══════════════════════════════════
 // 初期化（Firebaseからデータ受け取り後に呼ばれる）
 // ═══════════════════════════════════
-window._syncFromFirestore = function() {
-  extraEvents     = window._extraEvents     || [];
-  baseOverrides   = window._baseOverrides   || {};
-  deletedBaseKeys = window._deletedBaseKeys || [];
-  events = getEventsForDate(selectedDate);
-  buildTimeline();
-  buildMonthCalendar();
-  buildSidebarList();
-  updateNowLine();
-};
-
-window._initApp = function() {
-  console.log('_initApp called');
-  extraEvents     = window._extraEvents     || [];
-  baseOverrides   = window._baseOverrides   || {};
-  deletedBaseKeys = window._deletedBaseKeys || [];
-  try {
-    updateHeader();
-    buildMonthCalendar();
-    buildSidebarList();
-    buildTimeline();
-    updateNowLine();
-    console.log('_initApp complete');
-    window._appReady = true;
-  } catch(e) {
-    console.error('_initApp error: ' + e.message);
-  }
-  setInterval(() => {
-    updateNowLine();
-    buildSidebarList();
-    if (dateStr(realToday) !== dateStr(new Date())) location.reload();
-  }, 10000);
-};
 </script>
 </div><!-- /appScreen -->
 </body>
