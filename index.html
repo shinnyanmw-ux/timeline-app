@@ -26,6 +26,20 @@ const DATA_REF = db.collection('timeline').doc('appData');
 window.loginWithGoogle = () => auth.signInWithPopup(provider).catch(e => console.error(e));
 window.logoutGoogle    = () => auth.signOut();
 
+// ── エラーログ表示パネル ──
+window._log = function(msg, type='info') {
+  const panel = document.getElementById('debugLog');
+  if (!panel) return;
+  const line = document.createElement('div');
+  line.style.cssText = `padding:2px 0; color:${type==='error'?'#E03535':type==='warn'?'#FF8800':'#333'}; font-size:11px; border-bottom:1px solid #eee;`;
+  line.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+  panel.prepend(line);
+};
+const _origError = console.error.bind(console);
+const _origLog   = console.log.bind(console);
+console.error = (...a) => { _origError(...a); window._log(a.join(' '), 'error'); };
+console.log   = (...a) => { _origLog(...a);   window._log(a.join(' '), 'info'); };
+
 window.saveToFirestore = async () => {
   try {
     await DATA_REF.set({
@@ -40,26 +54,30 @@ window.saveToFirestore = async () => {
 let _unsubscribe = null;
 
 auth.onAuthStateChanged(user => {
+  console.log('auth state changed: ' + (user ? user.email : 'null'));
   const loginScreen = document.getElementById('loginScreen');
   const appScreen   = document.getElementById('appScreen');
   if (user) {
     loginScreen.style.display = 'none';
     appScreen.style.display   = 'flex';
     document.getElementById('authUserName').textContent = user.displayName || user.email;
-    // リアルタイム同期開始
+    console.log('starting loadData...');
     if (_unsubscribe) _unsubscribe();
     _unsubscribe = DATA_REF.onSnapshot(snap => {
+      console.log('snapshot received, exists=' + snap.exists);
       const d = snap.exists ? snap.data() : {};
       window._extraEvents     = d.extraEvents     || [];
       window._baseOverrides   = d.baseOverrides   || {};
       window._deletedBaseKeys = d.deletedBaseKeys || [];
       if (window._appReady) {
+        console.log('syncing...');
         window._syncFromFirestore();
       } else {
+        console.log('calling _initApp, defined=' + (typeof window._initApp));
         window._initApp();
       }
     }, e => {
-      console.error('sync error:', e);
+      console.error('snapshot error: ' + e.message);
       window._extraEvents = []; window._baseOverrides = {}; window._deletedBaseKeys = [];
       window._initApp();
     });
@@ -694,10 +712,15 @@ body {
         <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
         <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
         <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"/>
-        <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+        <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
       </svg>
       Googleでログイン
     </button>
+  </div>
+  <!-- デバッグログ -->
+  <div style="position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:2px solid #E03535;padding:8px 12px;max-height:200px;overflow-y:auto;z-index:99999;">
+    <div style="font-size:11px;font-weight:900;color:#E03535;margin-bottom:4px">🔍 デバッグログ</div>
+    <div id="debugLog"></div>
   </div>
 </div>
 
@@ -1553,15 +1576,21 @@ window._syncFromFirestore = function() {
 };
 
 window._initApp = function() {
+  console.log('_initApp called');
   extraEvents     = window._extraEvents     || [];
   baseOverrides   = window._baseOverrides   || {};
   deletedBaseKeys = window._deletedBaseKeys || [];
-  updateHeader();
-  buildMonthCalendar();
-  buildSidebarList();
-  buildTimeline();
-  updateNowLine();
-  window._appReady = true;
+  try {
+    updateHeader();
+    buildMonthCalendar();
+    buildSidebarList();
+    buildTimeline();
+    updateNowLine();
+    console.log('_initApp complete');
+    window._appReady = true;
+  } catch(e) {
+    console.error('_initApp error: ' + e.message);
+  }
   setInterval(() => {
     updateNowLine();
     buildSidebarList();
