@@ -946,6 +946,8 @@ const baseEventNames = new Set(baseEvents.map(ev => ev.name));
 function isBaseEvent(ev) {
   return baseEventNames.has(ev.name) && !ev.onceDate;
 }
+
+function getEventsForDate(date) {
   const dow  = date.getDay();
   const dStr = dateStr(date);
 
