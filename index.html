@@ -833,13 +833,40 @@ body {
   }
   .mobile-footer .add-btn { flex: 1; }
 
-  /* PCのみの要素を非表示 */
-  .timeline-wrap::before,
-  .timeline-wrap::after { height: 40px; }
+  /* 予定ブロックをモバイル向けに調整 */
+  .event-content {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+    padding: 6px 10px;
+  }
+  .event-name {
+    font-size: 14px;
+  }
+  .event-time-range {
+    font-size: 11px;
+  }
+  .event-emoji {
+    width: 40px;
+    font-size: 18px;
+  }
+  /* 編集ボタンと写真ボタンを小さく */
+  .edit-menu-btn,
+  .photo-spacer {
+    width: 24px;
+  }
+  .photo-btn { width: 28px; }
+  .photo-btn-icon { width: 26px; height: 26px; font-size: 12px; }
+  /* 時間ラベルも小さく */
+  .hour-label { font-size: 13px !important; }
+  /* タイムラインの左余白を縮小 */
+  :root { --time-w: 52px; }
 }
 
 /* PCではモバイル専用要素を非表示 */
 @media (min-width: 769px) {
+  .timeline-wrap::before,
+  .timeline-wrap::after { height: 40px; }
   .mobile-tabs   { display: none; }
   .mobile-footer { display: none; }
   .tab-timeline,
