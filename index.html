@@ -939,12 +939,12 @@ function formatAmPm(t) {
 // 状態管理
 // ═══════════════════════════════════
 const realToday  = new Date();
-let selectedDate = new Date();
-let calViewYear  = realToday.getFullYear();
-let calViewMonth = realToday.getMonth();
+var selectedDate = new Date();
+var calViewYear  = realToday.getFullYear();
+var calViewMonth = realToday.getMonth();
 
 // 全予定（Firestoreから読み込む）
-let allEvents = window._events || [];
+var allEvents = window._events || [];
 
 // Firestoreへ保存
 function saveData() {
@@ -964,7 +964,7 @@ function hasEventsOn(date) {
   return getEventsForDate(date).length > 0;
 }
 
-let events = getEventsForDate(selectedDate);
+var events = [];
 
 // ═══════════════════════════════════
 // カレンダー描画
