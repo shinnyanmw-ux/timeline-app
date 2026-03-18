@@ -4,108 +4,72 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>きょうのじかん</title>
-<!-- Firebase SDK -->
-<script type="module">
-import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
-import { getFirestore, doc, getDoc, setDoc, onSnapshot } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
-import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
-
+<!-- Firebase compat SDK -->
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script>
 const firebaseConfig = {
   apiKey: "AIzaSyAkw1ZOMeJDP8TMW04JH_EUjD6WE9qxkNU",
   authDomain: "child-tracker-2a36c.firebaseapp.com",
-  databaseURL: "https://child-tracker-2a36c-default-rtdb.firebaseio.com",
   projectId: "child-tracker-2a36c",
   storageBucket: "child-tracker-2a36c.firebasestorage.app",
   messagingSenderId: "104834828543",
   appId: "1:104834828543:web:d1f0f88ee30018d28024ca"
 };
+firebase.initializeApp(firebaseConfig);
+const db       = firebase.firestore();
+const auth     = firebase.auth();
+const provider = new firebase.auth.GoogleAuthProvider();
+const DATA_REF = db.collection('timeline').doc('appData');
 
-const app      = initializeApp(firebaseConfig);
-const db       = getFirestore(app);
-const auth     = getAuth(app);
-const provider = new GoogleAuthProvider();
-const DATA_REF = doc(db, 'timeline', 'appData');
+window.loginWithGoogle = () => auth.signInWithPopup(provider).catch(e => console.error(e));
+window.logoutGoogle    = () => auth.signOut();
 
-// ── ログイン・ログアウト ──
-window.loginWithGoogle = async function() {
+window.saveToFirestore = async () => {
   try {
-    await signInWithPopup(auth, provider);
-  } catch(e) { console.error('login error:', e); }
-};
-window.logoutGoogle = async function() {
-  await signOut(auth);
-};
-
-// ── 認証状態の監視 ──
-onAuthStateChanged(auth, user => {
-  const loginScreen = document.getElementById('loginScreen');
-  const appScreen   = document.getElementById('appScreen');
-  if (user) {
-    // ログイン済み → アプリ表示
-    loginScreen.style.display = 'none';
-    appScreen.style.display   = 'flex';
-    document.getElementById('authUserName').textContent = user.displayName || user.email;
-    // データ読み込み
-    loadData();
-  } else {
-    // 未ログイン → ログイン画面
-    loginScreen.style.display = 'flex';
-    appScreen.style.display   = 'none';
-  }
-});
-
-// Firestoreへの保存
-window.saveToFirestore = async function() {
-  try {
-    await setDoc(DATA_REF, {
-      extraEvents:     window._extraEvents,
-      baseOverrides:   window._baseOverrides,
-      deletedBaseKeys: window._deletedBaseKeys,
+    await DATA_REF.set({
+      extraEvents:     window._extraEvents     || [],
+      baseOverrides:   window._baseOverrides   || {},
+      deletedBaseKeys: window._deletedBaseKeys || [],
       updatedAt:       Date.now()
     });
   } catch(e) { console.error('save error:', e); }
 };
 
-// ── データ読み込み＆リアルタイム同期 ──
-let unsubscribe = null;
-function loadData() {
-  if (unsubscribe) unsubscribe(); // 既存リスナー解除
-  unsubscribe = onSnapshot(DATA_REF, (snap) => {
-    if (snap.exists()) {
-      const d = snap.data();
+let _unsubscribe = null;
+
+auth.onAuthStateChanged(user => {
+  const loginScreen = document.getElementById('loginScreen');
+  const appScreen   = document.getElementById('appScreen');
+  if (user) {
+    loginScreen.style.display = 'none';
+    appScreen.style.display   = 'flex';
+    document.getElementById('authUserName').textContent = user.displayName || user.email;
+    // リアルタイム同期開始
+    if (_unsubscribe) _unsubscribe();
+    _unsubscribe = DATA_REF.onSnapshot(snap => {
+      const d = snap.exists ? snap.data() : {};
       window._extraEvents     = d.extraEvents     || [];
       window._baseOverrides   = d.baseOverrides   || {};
       window._deletedBaseKeys = d.deletedBaseKeys || [];
-    } else {
-      window._extraEvents     = [];
-      window._baseOverrides   = {};
-      window._deletedBaseKeys = [];
-    }
-    if (window._appReady) {
-      window._syncFromFirestore();
-    } else {
-      // _initAppが定義されるまで待つ
-      const tryInit = () => {
-        if (typeof window._initApp === 'function') {
-          window._initApp();
-        } else {
-          setTimeout(tryInit, 50);
-        }
-      };
-      tryInit();
-    }
-  }, e => {
-    console.error('sync error:', e);
-    window._extraEvents     = [];
-    window._baseOverrides   = {};
-    window._deletedBaseKeys = [];
-    const tryInit = () => {
-      if (typeof window._initApp === 'function') window._initApp();
-      else setTimeout(tryInit, 50);
-    };
-    tryInit();
-  });
-}
+      if (window._appReady) {
+        window._syncFromFirestore();
+      } else {
+        window._initApp();
+      }
+    }, e => {
+      console.error('sync error:', e);
+      window._extraEvents = []; window._baseOverrides = {}; window._deletedBaseKeys = [];
+      window._initApp();
+    });
+  } else {
+    if (_unsubscribe) { _unsubscribe(); _unsubscribe = null; }
+    loginScreen.style.display = 'flex';
+    appScreen.style.display   = 'none';
+    window._appReady = false;
+  }
+});
 </script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@400;700;900&display=swap');
