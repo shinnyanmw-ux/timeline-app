@@ -52,6 +52,8 @@ window.saveToFirestore = async () => {
   } catch(e) { console.error('save error: ' + e.message); }
 };
 
+let _unsubscribe = null;
+
 auth.onAuthStateChanged(user => {
   console.log('auth: ' + (user ? user.email : 'null'));
   const loginScreen = document.getElementById('loginScreen');
@@ -60,20 +62,33 @@ auth.onAuthStateChanged(user => {
     loginScreen.style.display = 'none';
     appScreen.style.display   = 'flex';
     document.getElementById('authUserName').textContent = user.displayName || user.email;
-    // 起動時に1回だけ読み込み（競合なし）
-    DATA_REF.get().then(snap => {
+    if (_unsubscribe) _unsubscribe();
+    let firstLoad = true;
+    _unsubscribe = DATA_REF.onSnapshot({ includeMetadataChanges: true }, snap => {
+      // 自分の書き込みのローカルキャッシュは無視（hasPendingWrites=trueの場合）
+      // 初回ロードとサーバー確定データのみ処理
+      if (!firstLoad && snap.metadata.hasPendingWrites) {
+        console.log('skip: own pending write');
+        return;
+      }
+      firstLoad = false;
       const d = snap.exists ? snap.data() : {};
       window._extraEvents     = d.extraEvents     || [];
       window._baseOverrides   = d.baseOverrides   || {};
       window._deletedBaseKeys = d.deletedBaseKeys || [];
-      console.log('loaded, deletedBaseKeys=' + JSON.stringify(window._deletedBaseKeys));
-      window._initApp();
-    }).catch(e => {
-      console.error('load error: ' + e.message);
+      console.log('snapshot OK, appReady=' + window._appReady);
+      if (window._appReady) {
+        window._syncFromFirestore();
+      } else {
+        window._initApp();
+      }
+    }, e => {
+      console.error('snapshot error: ' + e.message);
       window._extraEvents = []; window._baseOverrides = {}; window._deletedBaseKeys = [];
       window._initApp();
     });
   } else {
+    if (_unsubscribe) { _unsubscribe(); _unsubscribe = null; }
     loginScreen.style.display = 'flex';
     appScreen.style.display   = 'none';
     window._appReady = false;
