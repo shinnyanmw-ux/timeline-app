@@ -23,39 +23,36 @@ const auth     = firebase.auth();
 const provider = new firebase.auth.GoogleAuthProvider();
 const DATA_REF = db.collection('timeline').doc('appData');
 
-window.loginWithGoogle = () => auth.signInWithPopup(provider).catch(e => console.error(e));
+window.loginWithGoogle = () => auth.signInWithPopup(provider).catch(e => alert('ログインエラー: ' + e.message));
 window.logoutGoogle    = () => auth.signOut();
 
-// ── エラーログ表示パネル ──
-window._log = function(msg, type='info') {
-  const panel = document.getElementById('debugLog');
-  if (!panel) return;
-  const line = document.createElement('div');
-  line.style.cssText = `padding:2px 0; color:${type==='error'?'#E03535':type==='warn'?'#FF8800':'#333'}; font-size:11px; border-bottom:1px solid #eee;`;
-  line.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
-  panel.prepend(line);
-};
-const _origError = console.error.bind(console);
-const _origLog   = console.log.bind(console);
-console.error = (...a) => { _origError(...a); window._log(a.join(' '), 'error'); };
-console.log   = (...a) => { _origLog(...a);   window._log(a.join(' '), 'info'); };
+const CLIENT_ID = Math.random().toString(36).slice(2);
+
+// デフォルト予定（初回のみFirestoreに書き込む）
+const DEFAULT_EVENTS = [
+  { name: 'あさごはん',             start: '7:00',  end: '7:30',  emoji: '🍳', days: [0,1,2,3,4,5,6] },
+  { name: 'はみがき・くすり・きがえ', start: '7:30',  end: '7:55',  emoji: '🪥', days: [1,2,3,4,5] },
+  { name: 'がっこう（月・水）',       start: '8:20',  end: '13:30', emoji: '🎒', days: [1,3] },
+  { name: 'がっこう（火・木・金）',   start: '8:20',  end: '14:30', emoji: '🎒', days: [2,4,5] },
+  { name: 'よるごはん',             start: '18:30', end: '20:00', emoji: '🍜', days: [0,1,2,3,4,5,6] },
+  { name: 'おふろ',                 start: '20:00', end: '20:30', emoji: '🛁', days: [0,1,2,3,4,5,6] },
+  { name: 'しゅくだい',             start: '20:30', end: '21:00', emoji: '📝', days: [1,2,3,4,5] },
+  { name: 'ねるじゅんび',           start: '21:30', end: '22:00', emoji: '😴', days: [0,1,2,3,4,5,6] },
+];
 
 window.saveToFirestore = async () => {
   try {
     await DATA_REF.set({
-      extraEvents:     window._extraEvents     || [],
-      baseOverrides:   window._baseOverrides   || {},
-      deletedBaseKeys: window._deletedBaseKeys || [],
-      updatedAt:       Date.now()
+      events:    window._events || [],
+      updatedAt: Date.now(),
+      writtenBy: CLIENT_ID
     });
-    console.log('saved OK');
   } catch(e) { console.error('save error: ' + e.message); }
 };
 
 let _unsubscribe = null;
 
 auth.onAuthStateChanged(user => {
-  console.log('auth: ' + (user ? user.email : 'null'));
   const loginScreen = document.getElementById('loginScreen');
   const appScreen   = document.getElementById('appScreen');
   if (user) {
@@ -63,20 +60,17 @@ auth.onAuthStateChanged(user => {
     appScreen.style.display   = 'flex';
     document.getElementById('authUserName').textContent = user.displayName || user.email;
     if (_unsubscribe) _unsubscribe();
-    let firstLoad = true;
-    _unsubscribe = DATA_REF.onSnapshot({ includeMetadataChanges: true }, snap => {
-      // 自分の書き込みのローカルキャッシュは無視（hasPendingWrites=trueの場合）
-      // 初回ロードとサーバー確定データのみ処理
-      if (!firstLoad && snap.metadata.hasPendingWrites) {
-        console.log('skip: own pending write');
-        return;
+    _unsubscribe = DATA_REF.onSnapshot(snap => {
+      const d = snap.exists ? snap.data() : null;
+      // 自分の書き込みは無視
+      if (d && d.writtenBy === CLIENT_ID) return;
+      if (!d || !d.events || d.events.length === 0) {
+        // 初回：デフォルト予定を書き込む
+        window._events = DEFAULT_EVENTS.map(e => ({...e}));
+        window.saveToFirestore();
+      } else {
+        window._events = d.events;
       }
-      firstLoad = false;
-      const d = snap.exists ? snap.data() : {};
-      window._extraEvents     = d.extraEvents     || [];
-      window._baseOverrides   = d.baseOverrides   || {};
-      window._deletedBaseKeys = d.deletedBaseKeys || [];
-      console.log('snapshot OK, appReady=' + window._appReady);
       if (window._appReady) {
         window._syncFromFirestore();
       } else {
@@ -84,7 +78,7 @@ auth.onAuthStateChanged(user => {
       }
     }, e => {
       console.error('snapshot error: ' + e.message);
-      window._extraEvents = []; window._baseOverrides = {}; window._deletedBaseKeys = [];
+      window._events = DEFAULT_EVENTS.map(e => ({...e}));
       window._initApp();
     });
   } else {
@@ -100,9 +94,7 @@ auth.onAuthStateChanged(user => {
 window._appReady = false;
 
 window._syncFromFirestore = function() {
-  extraEvents     = window._extraEvents     || [];
-  baseOverrides   = window._baseOverrides   || {};
-  deletedBaseKeys = window._deletedBaseKeys || [];
+  allEvents = window._events || [];
   events = getEventsForDate(selectedDate);
   buildTimeline();
   buildMonthCalendar();
@@ -111,21 +103,13 @@ window._syncFromFirestore = function() {
 };
 
 window._initApp = function() {
-  console.log('_initApp called');
-  extraEvents     = window._extraEvents     || [];
-  baseOverrides   = window._baseOverrides   || {};
-  deletedBaseKeys = window._deletedBaseKeys || [];
-  try {
-    updateHeader();
-    buildMonthCalendar();
-    buildSidebarList();
-    buildTimeline();
-    updateNowLine();
-    console.log('_initApp complete');
-    window._appReady = true;
-  } catch(e) {
-    console.error('_initApp error: ' + e.message);
-  }
+  allEvents = window._events || [];
+  updateHeader();
+  buildMonthCalendar();
+  buildSidebarList();
+  buildTimeline();
+  updateNowLine();
+  window._appReady = true;
   setInterval(() => {
     updateNowLine();
     buildSidebarList();
@@ -787,7 +771,6 @@ body {
   <!-- 追加ボタン -->
   <div class="sidebar-footer">
     <button class="add-btn" onclick="openAddModal()">＋ よていを入れる</button>
-    <button onclick="resetBaseEvents()" style="width:100%;background:none;border:1.5px solid var(--border);border-radius:12px;padding:8px;font-family:inherit;font-size:12px;font-weight:700;color:var(--muted);cursor:pointer;margin-top:2px">🔄 もとの予定をリセット</button>
   </div>
 
   <!-- 予定リスト -->
@@ -955,62 +938,24 @@ function formatAmPm(t) {
 // 状態管理
 // ═══════════════════════════════════
 const realToday  = new Date();
-let selectedDate = new Date(); // 表示中の日付
+let selectedDate = new Date();
 let calViewYear  = realToday.getFullYear();
 let calViewMonth = realToday.getMonth();
 
-// データはFirebaseから受け取る（window._xxxにセット済み）
-let extraEvents     = window._extraEvents     || [];
-let baseOverrides   = window._baseOverrides   || {};
-let deletedBaseKeys = window._deletedBaseKeys || [];
+// 全予定（Firestoreから読み込む）
+let allEvents = window._events || [];
 
-// Firestoreへ保存（window変数も同期）
+// Firestoreへ保存
 function saveData() {
-  window._extraEvents     = extraEvents;
-  window._baseOverrides   = baseOverrides;
-  window._deletedBaseKeys = deletedBaseKeys;
+  window._events = allEvents;
   if (window.saveToFirestore) window.saveToFirestore();
-}
-
-// 学校の終わり時間（曜日依存）
-function schoolEndFor(dow) {
-  return (dow === 1 || dow === 3) ? '13:30' : '14:30';
-}
-
-const baseEvents = [
-  { name: 'あさごはん',             start: '7:00',  end: '7:30',  emoji: '🍳', days: [0,1,2,3,4,5,6], _base: true },
-  { name: 'はみがき・くすり・きがえ', start: '7:30',  end: '7:55',  emoji: '🪥', days: [1,2,3,4,5], _base: true },
-  { name: 'がっこう',               start: '8:20',  end: null,    emoji: '🎒', days: [1,2,3,4,5], _base: true, _schoolEnd: true },
-  { name: 'よるごはん',             start: '18:30', end: '20:00', emoji: '🍜', days: [0,1,2,3,4,5,6], _base: true },
-  { name: 'おふろ',                 start: '20:00', end: '20:30', emoji: '🛁', days: [0,1,2,3,4,5,6], _base: true },
-  { name: 'しゅくだい',             start: '20:30', end: '21:00', emoji: '📝', days: [1,2,3,4,5], _base: true },
-  { name: 'ねるじゅんび',           start: '21:30', end: '22:00', emoji: '😴', days: [0,1,2,3,4,5,6], _base: true },
-];
-
-// ベース予定の名前セット（削除・編集判定に使用）
-const baseEventNames = new Set(baseEvents.map(ev => ev.name));
-function isBaseEvent(ev) {
-  return baseEventNames.has(ev.name) && !ev.onceDate;
 }
 
 function getEventsForDate(date) {
   const dow  = date.getDay();
   const dStr = dateStr(date);
-
-  const baseFiltered = baseEvents
-    .map(ev => {
-      const key = ev.name;
-      if (deletedBaseKeys.includes(key)) return null;
-      if (baseOverrides[key]) return { ...baseOverrides[key] };
-      if (ev._schoolEnd) return { ...ev, end: schoolEndFor(dow) };
-      return ev;
-    })
-    .filter(ev => ev && (ev.onceDate ? ev.onceDate === dStr : ev.days.includes(dow)));
-
-  const extra = extraEvents.filter(ev =>
-    ev.onceDate ? ev.onceDate === dStr : ev.days.includes(dow));
-
-  return [...baseFiltered, ...extra]
+  return allEvents
+    .filter(ev => ev.onceDate ? ev.onceDate === dStr : (ev.days || []).includes(dow))
     .sort((a,b) => timeToMin(a.start) - timeToMin(b.start));
 }
 
@@ -1394,49 +1339,35 @@ document.getElementById('photoClose').addEventListener('click', () =>
 // ═══════════════════════════════════
 // 編集メニュー
 // ═══════════════════════════════════
-let editingIndex = -1, editingExtraIndex = -1, editingBaseKey = null;
+let editingIndex = -1;
 
 function openEditMenu(evIndex) {
+  editingIndex = evIndex;
   const ev = events[evIndex];
-  editingIndex      = evIndex;
-  editingBaseKey    = isBaseEvent(ev) ? ev.name : null;
-  editingExtraIndex = isBaseEvent(ev) ? -1 : extraEvents.findIndex(e =>
-    e.name === ev.name && e.start === ev.start && e.end === ev.end);
   document.getElementById('editMenuTitle').textContent = ev.emoji + ' ' + ev.name;
   document.getElementById('editMenuOverlay').classList.add('open');
 }
 
 function deleteEvent(evOverride = null) {
-  // evOverride: 一覧から直接削除する場合に使用
-  const ev        = evOverride || events[editingIndex];
-  const bKey      = evOverride ? (isBaseEvent(ev) ? ev.name : null) : editingBaseKey;
-  const extraIdx  = evOverride
-    ? extraEvents.findIndex(e => e.name === ev.name && e.start === ev.start && e.end === ev.end)
-    : editingExtraIndex;
-
-  if (bKey) {
-    if (!deletedBaseKeys.includes(bKey)) deletedBaseKeys.push(bKey);
-    delete baseOverrides[bKey];
-    saveData();
-  } else if (extraIdx >= 0) {
-    extraEvents.splice(extraIdx, 1);
+  const ev = evOverride || events[editingIndex];
+  // allEventsから完全一致で削除
+  const idx = allEvents.findIndex(e =>
+    e.name === ev.name && e.start === ev.start && e.end === ev.end &&
+    JSON.stringify(e.days) === JSON.stringify(ev.days) &&
+    (e.onceDate || '') === (ev.onceDate || '')
+  );
+  if (idx >= 0) {
+    allEvents.splice(idx, 1);
     saveData();
   }
   document.getElementById('editMenuOverlay').classList.remove('open');
   events = getEventsForDate(selectedDate);
-  buildTimeline(); buildMonthCalendar();
-  buildSidebarList();
+  buildTimeline(); buildMonthCalendar(); buildSidebarList();
 }
 
 function openEditForm(evOverride = null) {
   document.getElementById('editMenuOverlay').classList.remove('open');
-  const ev = evOverride || events[editingIndex];
-  if (evOverride) {
-    editingBaseKey    = isBaseEvent(ev) ? ev.name : null;
-    editingExtraIndex = isBaseEvent(ev) ? -1 : extraEvents.findIndex(e =>
-      e.name === ev.name && e.start === ev.start && e.end === ev.end);
-  }
-  openAddModal(ev);
+  openAddModal(evOverride || events[editingIndex]);
 }
 
 document.getElementById('editMenuOverlay').addEventListener('click', e => {
@@ -1572,17 +1503,22 @@ function submitEvent() {
     newEv = { name, start, end, emoji: selectedEmoji, days: [], onceDate: dateVal, photos: 0 };
   }
 
-  if (editingBaseKey) {
-    baseOverrides[editingBaseKey] = newEv;
-    saveData();
-  } else if (editingExtraIndex >= 0) {
-    extraEvents.splice(editingExtraIndex, 1, newEv);
-    saveData();
+  // 編集中なら元のイベントを置き換え、新規なら追加
+  const editEv = editingIndex >= 0 ? events[editingIndex] : null;
+  if (editEv) {
+    const idx = allEvents.findIndex(e =>
+      e.name === editEv.name && e.start === editEv.start && e.end === editEv.end &&
+      JSON.stringify(e.days) === JSON.stringify(editEv.days) &&
+      (e.onceDate || '') === (editEv.onceDate || '')
+    );
+    if (idx >= 0) allEvents.splice(idx, 1, newEv);
+    else allEvents.push(newEv);
   } else {
-    extraEvents.push(newEv);
-    saveData();
+    allEvents.push(newEv);
   }
-  editingExtraIndex = -1; editingIndex = -1; editingBaseKey = null;
+
+  editingIndex = -1;
+  saveData();
   document.getElementById('addOverlay').classList.remove('open');
   events = getEventsForDate(selectedDate);
   buildTimeline(); buildMonthCalendar();
@@ -1608,18 +1544,6 @@ document.getElementById('nextMonth').addEventListener('click', () => {
   if (calViewMonth > 11) { calViewMonth = 0; calViewYear++; }
   buildMonthCalendar();
 });
-
-// ベース予定のリセット（誤削除・誤編集を元に戻す）
-function resetBaseEvents() {
-  if (!confirm('もとのよてい（あさごはん・がっこうなど）をすべてリセットしますか？')) return;
-  deletedBaseKeys = [];
-  baseOverrides   = {};
-  window._deletedBaseKeys = [];
-  window._baseOverrides   = {};
-  saveData();
-  events = getEventsForDate(selectedDate);
-  buildTimeline(); buildMonthCalendar(); buildSidebarList();
-}
 
 // ═══════════════════════════════════
 // 初期化（Firebaseからデータ受け取り後に呼ばれる）
