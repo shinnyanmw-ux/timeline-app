@@ -40,14 +40,17 @@ const _origLog   = console.log.bind(console);
 console.error = (...a) => { _origError(...a); window._log(a.join(' '), 'error'); };
 console.log   = (...a) => { _origLog(...a);   window._log(a.join(' '), 'info'); };
 
+window._lastSaveTime = 0;
+
 window.saveToFirestore = async () => {
+  const now = Date.now();
+  window._lastSaveTime = now;
   try {
-    window._ignoreNextSnapshot = true; // 自分の書き込みによるsnapshotを無視
     await DATA_REF.set({
       extraEvents:     window._extraEvents     || [],
       baseOverrides:   window._baseOverrides   || {},
       deletedBaseKeys: window._deletedBaseKeys || [],
-      updatedAt:       Date.now()
+      updatedAt:       now
     });
   } catch(e) { console.error('save error:', e); }
 };
@@ -65,13 +68,13 @@ auth.onAuthStateChanged(user => {
     console.log('starting loadData...');
     if (_unsubscribe) _unsubscribe();
     _unsubscribe = DATA_REF.onSnapshot(snap => {
-      // 自分の書き込みによるsnapshotは無視（ローカル状態が正）
-      if (window._ignoreNextSnapshot) {
-        window._ignoreNextSnapshot = false;
+      const d = snap.exists ? snap.data() : {};
+      const snapTime = d.updatedAt || 0;
+      // 自分が3秒以内に保存したsnapshotは無視（ローカル状態が正）
+      if (snapTime > 0 && snapTime <= window._lastSaveTime) {
+        console.log('skipping own snapshot');
         return;
       }
-      console.log('snapshot received, exists=' + snap.exists);
-      const d = snap.exists ? snap.data() : {};
       window._extraEvents     = d.extraEvents     || [];
       window._baseOverrides   = d.baseOverrides   || {};
       window._deletedBaseKeys = d.deletedBaseKeys || [];
