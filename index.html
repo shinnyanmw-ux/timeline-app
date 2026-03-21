@@ -330,21 +330,31 @@ body {
   width: 100%;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 4px;
+  padding-left: 14px;
+  border-left: 4px solid var(--border);
+}
+.nn-row.is-now {
+  border-left-color: var(--now);
 }
 .nn-label {
-  font-size: 13px;
+  font-size: 11px;
   font-weight: 900;
   color: var(--muted);
-  letter-spacing: 0.1em;
+  letter-spacing: 0.12em;
 }
+.nn-row.is-now .nn-label { color: var(--now); }
 .nn-value {
-  font-size: clamp(18px, 2vw, 28px);
+  font-size: clamp(18px, 2vw, 24px);
   font-weight: 900;
   color: var(--text);
   line-height: 1.2;
-  word-break: break-all;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  width: 100%;
 }
+.nn-row.is-now .nn-value { font-size: clamp(20px, 2.2vw, 28px); }
 .nn-value.is-jiyu { color: #22AA77; }
 
 .nn-divider { width: 100%; height: 1px; background: var(--border); }
@@ -357,10 +367,12 @@ body {
   margin-top: 4px;
 }
 .nn-timer-label {
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 900;
-  color: var(--muted);
-  letter-spacing: 0.08em;
+  color: var(--text);
+  text-align: center;
+  line-height: 1.5;
+  white-space: pre-line;
 }
 .nn-timer-wrap {
   position: relative;
@@ -384,7 +396,33 @@ body {
   stroke-linecap: round;
   transition: stroke-dasharray 1s linear, stroke 0.4s;
 }
+#nnCircleWrap, #nnCircleWrapMobile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+.nn-waiting-time span { font-size: 16px; }
 .nn-timer-arc.jiyu { stroke: #22AA77; }
+.nn-waiting {
+  width: 100%;
+  padding: 16px 12px;
+  background: var(--block-bg);
+  border-radius: 12px;
+  text-align: center;
+}
+.nn-waiting-time {
+  font-size: clamp(24px, 2.5vw, 32px);
+  font-weight: 900;
+  color: var(--text);
+  line-height: 1.2;
+}
+.nn-waiting-sub {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted);
+  margin-top: 4px;
+}
 .nn-timer-center {
   position: absolute;
   inset: 0;
@@ -438,9 +476,11 @@ body {
   flex: 1;
   overflow: hidden;
   position: relative;
+  min-height: 0;
 }
 .timeline-scroll {
-  height: 100%;
+  position: absolute;
+  inset: 0;
   overflow-y: scroll;
   scrollbar-width: thin;
   scrollbar-color: var(--border) transparent;
@@ -640,9 +680,19 @@ body {
   font-weight: 700; color: var(--text); background: #fff; outline: none; cursor: pointer;
 }
 .ampm-select:focus { border-color: var(--now); }
-.emoji-row { display: flex; flex-wrap: wrap; gap: 8px; }
+.emoji-picker { width: 100%; }
+.emoji-cat-tabs {
+  display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 8px;
+}
+.emoji-cat-tab {
+  padding: 4px 8px; border-radius: 20px; border: 1.5px solid var(--border);
+  background: var(--panel-bg); font-family: inherit; font-size: 11px;
+  font-weight: 700; cursor: pointer; color: var(--text); transition: all 0.1s;
+}
+.emoji-cat-tab.active { background: var(--now); color: #fff; border-color: var(--now); }
+.emoji-row { display: flex; flex-wrap: wrap; gap: 6px; }
 .emoji-pick {
-  width: 40px; height: 40px; border-radius: 10px;
+  width: 38px; height: 38px; border-radius: 10px;
   border: 2px solid var(--border); background: var(--block-bg);
   font-size: 20px; cursor: pointer;
   display: flex; align-items: center; justify-content: center;
@@ -758,10 +808,41 @@ body {
     padding: 10px 16px 8px;
     gap: 8px;
   }
-  .main-header-date  { font-size: 22px; }
-  .main-header-youbi { font-size: 22px; }
-  .main-header-clock { font-size: 22px; }
+  .main-header-date  { font-size: 20px; }
+  .main-header-youbi { font-size: 20px; }
+  .main-header-clock { font-size: 20px; }
   .auth-area { display: none; }
+
+  /* モバイル日付ナビ */
+  .mobile-date-nav {
+    display: flex !important;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 16px;
+    background: var(--block-bg);
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  .date-nav-btn {
+    background: none;
+    border: 1.5px solid var(--border);
+    border-radius: 20px;
+    padding: 6px 14px;
+    font-family: inherit;
+    font-size: 18px;
+    font-weight: 900;
+    color: var(--text);
+    cursor: pointer;
+  }
+  .date-nav-today {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--now);
+    cursor: pointer;
+    padding: 4px 8px;
+    border-radius: 10px;
+    border: 1.5px solid var(--now);
+  }
 
   /* タブバー */
   .mobile-tabs {
@@ -797,9 +878,11 @@ body {
     flex-direction: column;
   }
 
-  /* タイムラインタブ */
   .tab-timeline { display: flex; flex-direction: column; height: 100%; }
   .tab-timeline.hidden { display: none; }
+
+  /* mobile-content が残り高さを埋める */
+  .mobile-content { flex: 1; min-height: 0; }
 
   /* いま・つぎタブ */
   .tab-nowNext {
@@ -812,15 +895,16 @@ body {
   }
   .tab-nowNext.hidden { display: none; }
   .tab-nowNext .nn-row { width: 100%; }
-  .tab-nowNext .nn-label { font-size: 14px; }
-  .tab-nowNext .nn-val { font-size: 28px; margin-top: 6px; }
+  .tab-nowNext .nn-label { font-size: 12px; }
+  .tab-nowNext .nn-value { font-size: 26px; }
+  .tab-nowNext .nn-row.is-now .nn-value { font-size: 30px; }
   .tab-nowNext .nn-div { width: 100%; height: 1px; background: var(--border); }
   .tab-nowNext .nn-timer-section { align-items: center; }
   .tab-nowNext .nn-timer-wrap { width: 180px; height: 180px; }
   .tab-nowNext .nn-timer-svg { width: 180px; height: 180px; }
   .tab-nowNext .nn-timer-min { font-size: 48px; }
   .tab-nowNext .nn-timer-unit { font-size: 16px; }
-  .tab-nowNext .nn-timer-label { font-size: 14px; }
+  .tab-nowNext .nn-timer-label { font-size: 15px; }
 
   /* フッターボタン */
   .mobile-footer {
@@ -869,8 +953,11 @@ body {
   .timeline-wrap::after { height: 40px; }
   .mobile-tabs   { display: none; }
   .mobile-footer { display: none; }
-  .tab-timeline,
-  .tab-nowNext   { display: contents; }
+  .mobile-date-nav { display: none; }
+  .mobile-content { display: contents; }
+  .tab-timeline  { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+  .tab-timeline.hidden { display: none; }
+  .tab-nowNext   { display: none !important; }
 }
 </style>
 </head>
@@ -939,6 +1026,13 @@ body {
     </div>
   </div>
 
+  <!-- モバイル日付ナビ -->
+  <div class="mobile-date-nav">
+    <button class="date-nav-btn" onclick="moveDate(-1)">‹</button>
+    <button class="date-nav-today" onclick="moveDate(0)">きょう</button>
+    <button class="date-nav-btn" onclick="moveDate(1)">›</button>
+  </div>
+
   <!-- モバイルタブバー -->
   <div class="mobile-tabs">
     <button class="mobile-tab active" id="tabTimeline" onclick="switchTab('timeline')">📅 タイムライン</button>
@@ -957,7 +1051,7 @@ body {
 
     <!-- いま・つぎタブ（モバイル用） -->
     <div class="tab-nowNext hidden" id="tabContentNowNext">
-      <div class="nn-row">
+      <div class="nn-row is-now">
         <div class="nn-label">いま</div>
         <div class="nn-value" id="nnNowMobile">—</div>
       </div>
@@ -968,16 +1062,22 @@ body {
       </div>
       <div class="nn-div"></div>
       <div class="nn-timer-section">
-        <div class="nn-timer-label">あと</div>
-        <div class="nn-timer-wrap">
-          <svg class="nn-timer-svg" viewBox="0 0 128 128">
-            <circle class="nn-timer-track" cx="64" cy="64" r="54"/>
-            <circle class="nn-timer-arc" id="nnArcMobile" cx="64" cy="64" r="54"
-              stroke-dasharray="0 339" stroke-dashoffset="0"/>
-          </svg>
-          <div class="nn-timer-center">
-            <div class="nn-timer-min" id="nnMinMobile">—</div>
-            <div class="nn-timer-unit" id="nnUnitMobile">ふん</div>
+        <div class="nn-waiting" id="nnWaitingMobile" style="display:none">
+          <div class="nn-waiting-time" id="nnWaitingTimeMobile">—</div>
+          <div class="nn-waiting-sub">1時間をきったら<br>カウント開始</div>
+        </div>
+        <div id="nnCircleWrapMobile">
+          <div class="nn-timer-label" id="nnLabelMobile">あと</div>
+          <div class="nn-timer-wrap">
+            <svg class="nn-timer-svg" viewBox="0 0 128 128">
+              <circle class="nn-timer-track" cx="64" cy="64" r="54"/>
+              <circle class="nn-timer-arc" id="nnArcMobile" cx="64" cy="64" r="54"
+                stroke-dasharray="0 339" stroke-dashoffset="0"/>
+            </svg>
+            <div class="nn-timer-center">
+              <div class="nn-timer-min" id="nnMinMobile">—</div>
+              <div class="nn-timer-unit" id="nnUnitMobile">ふん</div>
+            </div>
           </div>
         </div>
       </div>
@@ -992,7 +1092,7 @@ body {
 
 <!-- ══ いま・つぎパネル ══ -->
 <div class="now-next-panel" id="nowNextPanel">
-  <div class="nn-row">
+  <div class="nn-row is-now">
     <div class="nn-label">いま</div>
     <div class="nn-value" id="nnNow">—</div>
   </div>
@@ -1002,17 +1102,23 @@ body {
     <div class="nn-value" id="nnNext">—</div>
   </div>
   <div class="nn-divider"></div>
-  <div class="nn-timer-section">
-    <div class="nn-timer-label">あと</div>
-    <div class="nn-timer-wrap">
-      <svg class="nn-timer-svg" viewBox="0 0 128 128">
-        <circle class="nn-timer-track" cx="64" cy="64" r="54"/>
-        <circle class="nn-timer-arc" id="nnArc" cx="64" cy="64" r="54"
-          stroke-dasharray="0 339" stroke-dashoffset="0"/>
-      </svg>
-      <div class="nn-timer-center">
-        <div class="nn-timer-min" id="nnMin">—</div>
-        <div class="nn-timer-unit" id="nnUnit">ふん</div>
+  <div class="nn-timer-section" id="nnTimerSection">
+    <div class="nn-waiting" id="nnWaiting" style="display:none">
+      <div class="nn-waiting-time" id="nnWaitingTime">—</div>
+      <div class="nn-waiting-sub">1時間をきったら<br>カウント開始</div>
+    </div>
+    <div id="nnCircleWrap">
+      <div class="nn-timer-label" id="nnLabel">あと</div>
+      <div class="nn-timer-wrap">
+        <svg class="nn-timer-svg" viewBox="0 0 128 128">
+          <circle class="nn-timer-track" cx="64" cy="64" r="54"/>
+          <circle class="nn-timer-arc" id="nnArc" cx="64" cy="64" r="54"
+            stroke-dasharray="0 339" stroke-dashoffset="0"/>
+        </svg>
+        <div class="nn-timer-center">
+          <div class="nn-timer-min" id="nnMin">—</div>
+          <div class="nn-timer-unit" id="nnUnit">ふん</div>
+        </div>
       </div>
     </div>
   </div>
@@ -1042,7 +1148,7 @@ body {
     </div>
     <div class="form-group">
       <label class="form-label">えもじ</label>
-      <div class="emoji-row" id="emojiRow"></div>
+      <div class="emoji-picker" id="emojiPicker"></div>
     </div>
     <div class="form-group">
       <label class="form-label">はじまる時間</label>
@@ -1110,7 +1216,16 @@ const START_HOUR = 6, END_HOUR = 23, HOUR_H = 80;
 const YOUBI       = ['日ようび','月ようび','火ようび','水ようび','木ようび','金ようび','土ようび'];
 const YOUBI_SHORT = ['日','月','火','水','木','金','土'];
 const MONTHS      = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
-const EMOJIS      = ['🍳','🪥','🎒','🍱','🍜','🛁','📝','😴','⚽','🎮','📚','🎵','🏃','🛒','🎨','🐶'];
+const EMOJI_CATEGORIES = [
+  { label: '🍴 たべもの', emojis: ['🍳','🍱','🍜','🍙','🥗','🍰','🍕','🥤','🧃','🍎','🍞','🥣'] },
+  { label: '🏃 うごき・そと', emojis: ['🚶','🏃','⚽','🤸','🏊','🚴','🛝','🌳','🌸','🏕️','🎪','🤾'] },
+  { label: '👫 ともだち・かぞく', emojis: ['👫','🤝','😄','🎉','🫂','👨‍👩‍👦','🎈','💬','🪁','🎠'] },
+  { label: '🌈 りょういく・サポート', emojis: ['🌈','⭐','🧩','🎯','💪','🌟','🦋','🌱','🤲','🪄'] },
+  { label: '📚 べんきょう', emojis: ['🎒','📝','📚','🎨','🖍️','✏️','🔬','📖','🖊️','📐'] },
+  { label: '🚗 おでかけ', emojis: ['🚗','🚌','🎬','🛒','🏥','🚂','✈️','🛳️','🎡','🏪'] },
+  { label: '🏠 いえのこと', emojis: ['🛁','🪥','😴','🧹','🎮','🎵','📺','🛌','🧺','🪴'] },
+  { label: '🐾 どうぶつ・その他', emojis: ['🐶','🐱','🐰','🐸','🦁','🐧','🐠','🐥','🌙','❤️'] },
+];
 
 const timeToMin = t => { const [h,m] = t.split(':').map(Number); return h*60+m; };
 const minToPx   = m => (m - START_HOUR*60) / 60 * HOUR_H;
@@ -1475,25 +1590,60 @@ function updateNowNext(totalMin) {
   if (nextEl)  { nextEl.textContent = nextText;  nextEl.className = 'nn-value'; }
   if (nextElM) { nextElM.textContent = nextText; nextElM.className = 'nn-value'; }
 
-  // タイマー（PC + モバイル）
-  const minEl   = document.getElementById('nnMin');
-  const unitEl  = document.getElementById('nnUnit');
-  const arc     = document.getElementById('nnArc');
-  const minElM  = document.getElementById('nnMinMobile');
-  const unitElM = document.getElementById('nnUnitMobile');
-  const arcM    = document.getElementById('nnArcMobile');
+  // タイマーラベル（共通化）
+  const labelText = isJiyu
+    ? 'つぎのよていが\nはじまるまで'
+    : 'いまのよていが\nおわるまで';
+  const labelEl  = document.getElementById('nnLabel');
+  const labelElM = document.getElementById('nnLabelMobile');
+  if (labelEl)  labelEl.textContent  = labelText;
+  if (labelElM) labelElM.textContent = labelText;
+
+  // タイマー表示（60分固定スケール・1時間超は待機）
+  const waitingEl   = document.getElementById('nnWaiting');
+  const waitingElM  = document.getElementById('nnWaitingMobile');
+  const circleEl    = document.getElementById('nnCircleWrap');
+  const circleElM   = document.getElementById('nnCircleWrapMobile');
+  const minEl       = document.getElementById('nnMin');
+  const unitEl      = document.getElementById('nnUnit');
+  const arc         = document.getElementById('nnArc');
+  const minElM      = document.getElementById('nnMinMobile');
+  const unitElM     = document.getElementById('nnUnitMobile');
+  const arcM        = document.getElementById('nnArcMobile');
+  const waitTimeEl  = document.getElementById('nnWaitingTime');
+  const waitTimeElM = document.getElementById('nnWaitingTimeMobile');
 
   if (remMin === null) {
-    [minEl, minElM].forEach(el  => { if(el) el.textContent = '—'; });
+    // 予定なし
+    [waitingEl, waitingElM].forEach(el => { if(el) el.style.display = 'none'; });
+    [circleEl, circleElM].forEach(el => { if(el) el.style.display = 'flex'; });
+    [minEl, minElM].forEach(el   => { if(el) el.textContent = '—'; });
     [unitEl, unitElM].forEach(el => { if(el) el.textContent = ''; });
-    [arc, arcM].forEach(el => { if(el) { el.style.strokeDasharray = `0 ${CIRC}`; el.className = 'nn-timer-arc'; }});
+    [arc, arcM].forEach(el => { if(el) el.style.strokeDasharray = `0 ${CIRC}`; });
+
+  } else if (remMin > 60) {
+    // 1時間超 → 待機表示
+    [waitingEl, waitingElM].forEach(el => { if(el) el.style.display = 'block'; });
+    [circleEl, circleElM].forEach(el  => { if(el) el.style.display = 'none'; });
+    const h = Math.floor(remMin / 60), m = remMin % 60;
+    const txt = m > 0 ? `${h}じかん${m}ふん` : `${h}じかん`;
+    [waitTimeEl, waitTimeElM].forEach(el => { if(el) el.textContent = txt; });
+
   } else {
-    const ratio  = segTotal > 0 ? remMin / segTotal : 0;
+    // 60分以内 → 円タイマー（60分固定スケール）
+    [waitingEl, waitingElM].forEach(el => { if(el) el.style.display = 'none'; });
+    [circleEl, circleElM].forEach(el  => { if(el) el.style.display = 'flex'; });
+    const ratio  = remMin / 60; // 常に60分を満タンとする
     const filled = CIRC * ratio;
     const arcCls = 'nn-timer-arc' + (isJiyu ? ' jiyu' : '');
-    [minEl, minElM].forEach(el  => { if(el) el.textContent = remMin; });
+    [minEl, minElM].forEach(el   => { if(el) el.textContent = remMin; });
     [unitEl, unitElM].forEach(el => { if(el) el.textContent = 'ふん'; });
-    [arc, arcM].forEach(el => { if(el) { el.style.strokeDasharray = `${filled} ${CIRC - filled}`; el.className = arcCls; }});
+    [arc, arcM].forEach(el => {
+      if(el) {
+        el.style.strokeDasharray = `${filled} ${CIRC - filled}`;
+        el.className = arcCls;
+      }
+    });
   }
 }
 
@@ -1578,20 +1728,59 @@ function openAddModal(editEv = null) {
   document.getElementById('formSubmitBtn').textContent  = editEv ? '保存する' : 'よていを入れる';
   if (editEv) selectedEmoji = editEv.emoji;
 
-  // 絵文字
-  const row = document.getElementById('emojiRow');
-  row.innerHTML = '';
-  EMOJIS.forEach(em => {
-    const btn = document.createElement('button');
-    btn.className = 'emoji-pick' + (em === selectedEmoji ? ' selected' : '');
-    btn.textContent = em;
-    btn.onclick = () => {
-      selectedEmoji = em;
-      document.querySelectorAll('.emoji-pick').forEach(b => b.classList.remove('selected'));
-      btn.classList.add('selected');
+  // 絵文字ピッカー（カテゴリ別）
+  let currentCatIdx = 0;
+  const picker = document.getElementById('emojiPicker');
+  picker.innerHTML = '';
+
+  // カテゴリタブ
+  const tabs = document.createElement('div');
+  tabs.className = 'emoji-cat-tabs';
+  EMOJI_CATEGORIES.forEach((cat, idx) => {
+    const tab = document.createElement('button');
+    tab.className = 'emoji-cat-tab' + (idx === 0 ? ' active' : '');
+    tab.textContent = cat.label;
+    tab.onclick = () => {
+      currentCatIdx = idx;
+      document.querySelectorAll('.emoji-cat-tab').forEach((t,i) =>
+        t.classList.toggle('active', i === idx));
+      buildEmojiGrid(idx);
     };
-    row.appendChild(btn);
+    tabs.appendChild(tab);
   });
+  picker.appendChild(tabs);
+
+  // 絵文字グリッド
+  const grid = document.createElement('div');
+  grid.className = 'emoji-row';
+  grid.id = 'emojiGrid';
+  picker.appendChild(grid);
+
+  function buildEmojiGrid(catIdx) {
+    grid.innerHTML = '';
+    EMOJI_CATEGORIES[catIdx].emojis.forEach(em => {
+      const btn = document.createElement('button');
+      btn.className = 'emoji-pick' + (em === selectedEmoji ? ' selected' : '');
+      btn.textContent = em;
+      btn.onclick = () => {
+        selectedEmoji = em;
+        document.querySelectorAll('.emoji-pick').forEach(b => b.classList.remove('selected'));
+        btn.classList.add('selected');
+      };
+      grid.appendChild(btn);
+    });
+  }
+
+  // 編集時は選択絵文字のカテゴリを開く
+  if (editEv) {
+    const catIdx = EMOJI_CATEGORIES.findIndex(c => c.emojis.includes(editEv.emoji));
+    if (catIdx >= 0) {
+      currentCatIdx = catIdx;
+      document.querySelectorAll('.emoji-cat-tab').forEach((t,i) =>
+        t.classList.toggle('active', i === catIdx));
+    }
+  }
+  buildEmojiGrid(currentCatIdx);
 
   // 時間セレクト
   ['fStartH','fEndH'].forEach(id => {
@@ -1745,6 +1934,27 @@ function switchTab(tab) {
   document.getElementById('tabContentNowNext').classList.toggle('hidden', isTl);
   document.getElementById('tabTimeline').classList.toggle('active', isTl);
   document.getElementById('tabNowNext').classList.toggle('active', !isTl);
+}
+
+// 日付移動（モバイル用）
+function moveDate(offset) {
+  if (offset === 0) {
+    selectedDate = new Date(realToday);
+  } else {
+    const d = new Date(selectedDate);
+    d.setDate(d.getDate() + offset);
+    selectedDate = d;
+  }
+  events = getEventsForDate(selectedDate);
+  updateHeader();
+  buildTimeline();
+  buildMonthCalendar();
+  buildSidebarList();
+  if (dateStr(selectedDate) === dateStr(realToday)) {
+    updateNowLine();
+  } else {
+    document.getElementById('timelineScroll').scrollTo({ top: 0 });
+  }
 }
 
 // ═══════════════════════════════════
