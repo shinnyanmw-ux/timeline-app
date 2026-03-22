@@ -44,6 +44,7 @@ window.saveToFirestore = async () => {
   try {
     await DATA_REF.set({
       events:    window._events || [],
+      whosHome:  window._whosHome || { mama: false, papa: false },
       updatedAt: Date.now(),
       writtenBy: CLIENT_ID
     });
@@ -65,11 +66,12 @@ auth.onAuthStateChanged(user => {
       // 自分の書き込みは無視
       if (d && d.writtenBy === CLIENT_ID) return;
       if (!d || !d.events || d.events.length === 0) {
-        // 初回：デフォルト予定を書き込む
-        window._events = DEFAULT_EVENTS.map(e => ({...e}));
+        window._events   = DEFAULT_EVENTS.map(e => ({...e}));
+        window._whosHome = { mama: false, papa: false };
         window.saveToFirestore();
       } else {
-        window._events = d.events;
+        window._events   = d.events;
+        window._whosHome = d.whosHome || { mama: false, papa: false };
       }
       if (window._appReady) {
         window._syncFromFirestore();
@@ -95,6 +97,7 @@ window._appReady = false;
 
 window._syncFromFirestore = function() {
   allEvents = window._events || [];
+  updateWhosHome();
   events = getEventsForDate(selectedDate);
   buildTimeline();
   buildMonthCalendar();
@@ -104,6 +107,7 @@ window._syncFromFirestore = function() {
 
 window._initApp = function() {
   allEvents = window._events || [];
+  updateWhosHome();
   events = getEventsForDate(selectedDate);
   updateHeader();
   buildMonthCalendar();
@@ -760,7 +764,18 @@ body {
 .login-google-btn:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.12); }
 .login-google-icon { width: 24px; height: 24px; }
 
-/* ── ヘッダーのユーザー・ログアウト ── */
+/* ── だれがいるバッジ ── */
+.home-badges { display: flex; gap: 6px; align-items: center; flex-shrink: 0; }
+.home-badge {
+  padding: 5px 16px; border-radius: 20px;
+  font-size: clamp(13px, 1.4vw, 18px); font-weight: 900;
+  cursor: pointer; transition: all 0.15s;
+  border: 2px solid var(--border);
+  background: var(--block-bg); color: var(--muted);
+  font-family: inherit;
+}
+.home-badge.mama-on { background: #FFE0EF; color: #CC3377; border-color: #CC3377; }
+.home-badge.papa-on { background: #D6EAFF; color: #1A6ACC; border-color: #1A6ACC; }
 .auth-area {
   display: flex; align-items: center; gap: 8px; flex-shrink: 0;
 }
@@ -1018,6 +1033,10 @@ body {
     <div class="main-header-date-group">
       <div class="main-header-date"  id="mainDate"></div>
       <div class="main-header-youbi" id="mainYoubi"></div>
+    </div>
+    <div class="home-badges">
+      <button class="home-badge" id="badgeMama" onclick="toggleHome('mama')">ママ</button>
+      <button class="home-badge" id="badgePapa" onclick="toggleHome('papa')">パパ</button>
     </div>
     <div class="main-header-clock" id="mainClock">--:--</div>
     <div class="auth-area">
@@ -1926,8 +1945,22 @@ document.getElementById('nextMonth').addEventListener('click', () => {
 });
 
 // ═══════════════════════════════════
-// モバイルタブ切り替え
+// だれがいる
 // ═══════════════════════════════════
+function updateWhosHome() {
+  const wh = window._whosHome || { mama: false, papa: false };
+  const mama = document.getElementById('badgeMama');
+  const papa = document.getElementById('badgePapa');
+  if (mama) mama.className = 'home-badge' + (wh.mama ? ' mama-on' : '');
+  if (papa) papa.className = 'home-badge' + (wh.papa ? ' papa-on' : '');
+}
+
+function toggleHome(who) {
+  window._whosHome = window._whosHome || { mama: false, papa: false };
+  window._whosHome[who] = !window._whosHome[who];
+  updateWhosHome();
+  window.saveToFirestore();
+}
 function switchTab(tab) {
   const isTl = tab === 'timeline';
   document.getElementById('tabContentTimeline').classList.toggle('hidden', !isTl);
