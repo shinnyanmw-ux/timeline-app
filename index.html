@@ -118,6 +118,7 @@ window._initApp = function() {
   setInterval(() => {
     updateNowLine();
     buildSidebarList();
+    checkAlarms();
     if (dateStr(realToday) !== dateStr(new Date())) location.reload();
   }, 10000);
 };
@@ -1210,6 +1211,30 @@ body {
       </div>
     </div>
 
+    <div class="form-group">
+      <label class="form-label">アラーム（はじまる前）</label>
+      <select class="form-input" id="fAlarmStart">
+        <option value="0">なし</option>
+        <option value="1">1分前</option>
+        <option value="3">3分前</option>
+        <option value="5" selected>5分前</option>
+        <option value="10">10分前</option>
+        <option value="15">15分前</option>
+      </select>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">アラーム（おわる前）</label>
+      <select class="form-input" id="fAlarmEnd">
+        <option value="0">なし</option>
+        <option value="1">1分前</option>
+        <option value="3">3分前</option>
+        <option value="5" selected>5分前</option>
+        <option value="10">10分前</option>
+        <option value="15">15分前</option>
+      </select>
+    </div>
+
     <button class="form-submit" id="formSubmitBtn" onclick="submitEvent()">よていを入れる</button>
   </div>
 </div>
@@ -1870,6 +1895,8 @@ function openAddModal(editEv = null) {
   setTimeParts(editEv?.start, 'fStartAmpm','fStartH','fStartM');
   setTimeParts(editEv?.end,   'fEndAmpm',  'fEndH',  'fEndM');
 
+  document.getElementById('fAlarmStart').value = editEv?.alarmStart ?? 5;
+  document.getElementById('fAlarmEnd').value   = editEv?.alarmEnd   ?? 5;
   document.getElementById('fName').value = editEv?.name || '';
   document.getElementById('addOverlay').classList.add('open');
 }
@@ -1892,14 +1919,17 @@ function submitEvent() {
 
   const mode = document.querySelector('input[name="repeatMode"]:checked').value;
   let newEv;
+  const alarmStart = parseInt(document.getElementById('fAlarmStart').value);
+  const alarmEnd   = parseInt(document.getElementById('fAlarmEnd').value);
+
   if (mode === 'weekly') {
     const days = [...document.querySelectorAll('#dayChecks input:checked')].map(el => parseInt(el.value));
     if (!days.length) { alert('曜日を選んでください'); return; }
-    newEv = { name, start, end, emoji: selectedEmoji, days, photos: 0 };
+    newEv = { name, start, end, emoji: selectedEmoji, days, photos: 0, alarmStart, alarmEnd };
   } else {
     const dateVal = document.getElementById('fDate').value;
     if (!dateVal) { alert('日にちを選んでください'); return; }
-    newEv = { name, start, end, emoji: selectedEmoji, days: [], onceDate: dateVal, photos: 0 };
+    newEv = { name, start, end, emoji: selectedEmoji, days: [], onceDate: dateVal, photos: 0, alarmStart, alarmEnd };
   }
 
   // 編集中なら元のイベントを置き換え、新規なら追加
@@ -1961,6 +1991,73 @@ function toggleHome(who) {
   updateWhosHome();
   window.saveToFirestore();
 }
+// ═══════════════════════════════════
+// アラーム音
+// ═══════════════════════════════════
+let _audioCtx = null;
+function _getAudioCtx() {
+  if (!_audioCtx) _audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  if (_audioCtx.state === 'suspended') _audioCtx.resume();
+  return _audioCtx;
+}
+function _tone(freq, start, dur, vol, type) {
+  const c = _getAudioCtx();
+  const osc = c.createOscillator();
+  const g   = c.createGain();
+  osc.connect(g); g.connect(c.destination);
+  osc.type = type || 'triangle';
+  osc.frequency.value = freq;
+  const t = c.currentTime;
+  g.gain.setValueAtTime(0, t + start);
+  g.gain.linearRampToValueAtTime(vol, t + start + 0.03);
+  g.gain.setValueAtTime(vol, t + start + dur * 0.55);
+  g.gain.exponentialRampToValueAtTime(0.001, t + start + dur);
+  osc.start(t + start);
+  osc.stop(t + start + dur + 0.05);
+}
+// パターンC：ポップなファンファーレ（開始前）
+function playAlarmStart() {
+  _tone(784,  0.00, 0.28, 0.65, 'triangle');
+  _tone(880,  0.32, 0.28, 0.65, 'triangle');
+  _tone(988,  0.64, 0.28, 0.65, 'triangle');
+  _tone(1047, 0.96, 0.45, 0.65, 'triangle');
+  _tone(1047, 1.50, 0.45, 0.60, 'triangle');
+  _tone(1047, 2.05, 2.2,  0.55, 'triangle');
+}
+// パターンA下降版：3音下がって伸びる（終了前）
+function playAlarmEnd() {
+  _tone(1047, 0.00, 0.35, 0.60, 'triangle');
+  _tone(784,  0.40, 0.35, 0.60, 'triangle');
+  _tone(523,  0.80, 2.5,  0.55, 'triangle');
+}
+
+const _firedAlarms = new Set();
+function checkAlarms() {
+  if (!window._appReady) return;
+  const now = new Date();
+  const dStr = dateStr(now);
+  const totalMin = now.getHours() * 60 + now.getMinutes();
+  const todayEvs = allEvents.filter(ev =>
+    ev.onceDate ? ev.onceDate === dStr : (ev.days || []).includes(now.getDay())
+  );
+  todayEvs.forEach(ev => {
+    const startMin = timeToMin(ev.start);
+    const endMin   = ev.end ? timeToMin(ev.end) : null;
+    if (ev.alarmStart > 0) {
+      const key = `${dStr}_${ev.name}_start`;
+      if (totalMin === startMin - ev.alarmStart && !_firedAlarms.has(key)) {
+        _firedAlarms.add(key); playAlarmStart();
+      }
+    }
+    if (ev.alarmEnd > 0 && endMin !== null) {
+      const key = `${dStr}_${ev.name}_end`;
+      if (totalMin === endMin - ev.alarmEnd && !_firedAlarms.has(key)) {
+        _firedAlarms.add(key); playAlarmEnd();
+      }
+    }
+  });
+}
+
 function switchTab(tab) {
   const isTl = tab === 'timeline';
   document.getElementById('tabContentTimeline').classList.toggle('hidden', !isTl);
