@@ -43,8 +43,8 @@ const DEFAULT_EVENTS = [
 window.saveToFirestore = async () => {
   try {
     await DATA_REF.set({
-      events:    window._events || [],
-      whosHome:  window._whosHome || { mama: false, papa: false },
+      events:    window._events    || [],
+      whosHome:  window._whosHome  || {},
       updatedAt: Date.now(),
       writtenBy: CLIENT_ID
     });
@@ -67,11 +67,11 @@ auth.onAuthStateChanged(user => {
       if (d && d.writtenBy === CLIENT_ID) return;
       if (!d || !d.events || d.events.length === 0) {
         window._events   = DEFAULT_EVENTS.map(e => ({...e}));
-        window._whosHome = { mama: false, papa: false };
+        window._whosHome = {};
         window.saveToFirestore();
       } else {
         window._events   = d.events;
-        window._whosHome = d.whosHome || { mama: false, papa: false };
+        window._whosHome = d.whosHome || {};
       }
       if (window._appReady) {
         window._syncFromFirestore();
@@ -1450,6 +1450,7 @@ function selectDate(date) {
   selectedDate = new Date(date);
   events = getEventsForDate(selectedDate);
   updateHeader();
+  updateWhosHome();
   buildTimeline();
   buildMonthCalendar();
   if (dateStr(selectedDate) === dateStr(realToday)) {
@@ -1978,7 +1979,8 @@ document.getElementById('nextMonth').addEventListener('click', () => {
 // だれがいる
 // ═══════════════════════════════════
 function updateWhosHome() {
-  const wh = window._whosHome || { mama: false, papa: false };
+  const dStr = dateStr(selectedDate);
+  const wh = (window._whosHome || {})[dStr] || { mama: false, papa: false };
   const mama = document.getElementById('badgeMama');
   const papa = document.getElementById('badgePapa');
   if (mama) mama.className = 'home-badge' + (wh.mama ? ' mama-on' : '');
@@ -1986,8 +1988,13 @@ function updateWhosHome() {
 }
 
 function toggleHome(who) {
-  window._whosHome = window._whosHome || { mama: false, papa: false };
-  window._whosHome[who] = !window._whosHome[who];
+  const dStr = dateStr(selectedDate);
+  if (!window._whosHome) window._whosHome = {};
+  if (!window._whosHome[dStr]) window._whosHome[dStr] = { mama: false, papa: false };
+  window._whosHome[dStr][who] = !window._whosHome[dStr][who];
+  // 両方falseになったら日付キーを削除（データを軽くする）
+  const wh = window._whosHome[dStr];
+  if (!wh.mama && !wh.papa) delete window._whosHome[dStr];
   updateWhosHome();
   window.saveToFirestore();
 }
@@ -2077,6 +2084,7 @@ function moveDate(offset) {
   }
   events = getEventsForDate(selectedDate);
   updateHeader();
+  updateWhosHome();
   buildTimeline();
   buildMonthCalendar();
   buildSidebarList();
