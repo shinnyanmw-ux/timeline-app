@@ -119,6 +119,7 @@ window._initApp = function() {
     updateNowLine();
     buildSidebarList();
     checkAlarms();
+    updateMamaTimer();
     if (dateStr(realToday) !== dateStr(new Date())) location.reload();
   }, 10000);
 };
@@ -765,6 +766,24 @@ body {
 .login-google-btn:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.12); }
 .login-google-icon { width: 24px; height: 24px; }
 
+/* ── ままのひとりじかん ── */
+.mama-card-section { width: 100%; display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.mama-card-label { font-size: 14px; font-weight: 900; color: var(--text); letter-spacing: 0.04em; align-self: flex-start; }
+.mama-cards-row { display: flex; gap: 6px; justify-content: center; }
+.mama-card-btn {
+  width: 46px; height: 54px; border-radius: 10px;
+  border: 2px solid var(--border); background: #FFF0F6;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 2px; cursor: pointer; font-family: inherit; transition: all 0.15s; font-size: 18px;
+}
+.mama-card-btn span { font-size: 9px; font-weight: 900; color: #CC3377; }
+.mama-card-btn:hover { border-color: #CC3377; transform: scale(1.05); }
+.mama-card-btn.used { background: #F5F5F5; border-color: var(--border); opacity: 0.4; pointer-events: none; }
+.mama-card-btn.active { border-color: #CC3377; background: #FFD6EC; box-shadow: 0 0 0 3px rgba(204,51,119,0.15); }
+.mama-card-btn.used span, .mama-card-btn.active span { color: #CC3377; }
+.mama-timer-wrap { width: 100%; display: flex; flex-direction: column; align-items: center; gap: 6px; background: #FFF0F6; border-radius: 12px; padding: 10px 8px; border: 1.5px solid rgba(204,51,119,0.2); }
+.mama-timer-label { font-size: 11px; font-weight: 900; color: #CC3377; text-align: center; line-height: 1.5; }
+
 /* ── だれがいるバッジ ── */
 .home-badges { display: flex; gap: 6px; align-items: center; flex-shrink: 0; }
 .home-badge {
@@ -1142,6 +1161,65 @@ body {
       </div>
     </div>
   </div>
+
+  <!-- ままのひとりじかん -->
+  <div class="nn-divider"></div>
+  <div class="mama-card-section">
+    <div class="mama-card-label">ままのひとりじかん</div>
+    <div class="mama-cards-row" id="mamaCardsRow">
+      <button class="mama-card-btn" id="mamaCard0" onclick="openMamaCard(0)">🔕<span>1</span></button>
+      <button class="mama-card-btn" id="mamaCard1" onclick="openMamaCard(1)">🔕<span>2</span></button>
+      <button class="mama-card-btn" id="mamaCard2" onclick="openMamaCard(2)">🔕<span>3</span></button>
+    </div>
+    <!-- ままタイマー（使用中のみ表示） -->
+    <div class="mama-timer-wrap" id="mamaTimerWrap" style="display:none">
+      <div class="mama-timer-label" id="mamaTimerLabel">ままのじかんが おわるまで</div>
+      <div class="nn-timer-wrap">
+        <svg class="nn-timer-svg" viewBox="0 0 128 128">
+          <circle class="nn-timer-track" cx="64" cy="64" r="54" style="stroke:#FFD6EC"/>
+          <circle class="nn-timer-arc" id="mamaArc" cx="64" cy="64" r="54"
+            stroke-dasharray="0 339" stroke-dashoffset="0" style="stroke:#CC3377"/>
+        </svg>
+        <div class="nn-timer-center">
+          <div class="nn-timer-min" id="mamaMin" style="color:#CC3377">—</div>
+          <div class="nn-timer-unit" style="color:#CC3377">ふん</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ままのひとりじかん 時間選択モーダル -->
+<div class="modal-overlay" id="mamaCardOverlay">
+  <div class="modal" style="max-width:300px;text-align:center">
+    <button class="modal-close" onclick="closeMamaCard()">✕</button>
+    <div class="modal-title">🔕 ままのひとりじかん</div>
+    <div style="display:flex;flex-direction:column;gap:14px;margin-top:8px">
+      <div style="display:flex;align-items:center;gap:10px;justify-content:center">
+        <div style="text-align:center">
+          <div style="font-size:11px;font-weight:700;color:#AAA;margin-bottom:4px">はじまり</div>
+          <div style="display:flex;align-items:center;gap:4px">
+            <select class="ampm-select" id="mamaStartAmpm"><option>AM</option><option>PM</option></select>
+            <select class="ampm-select" id="mamaStartH" style="width:48px"></select>
+            <span style="font-weight:900">:</span>
+            <select class="ampm-select" id="mamaStartM" style="width:52px"></select>
+          </div>
+        </div>
+        <div style="font-size:18px;font-weight:900;color:#AAA;margin-top:16px">〜</div>
+        <div style="text-align:center">
+          <div style="font-size:11px;font-weight:700;color:#AAA;margin-bottom:4px">おわり</div>
+          <div style="display:flex;align-items:center;gap:4px">
+            <select class="ampm-select" id="mamaEndAmpm"><option>AM</option><option>PM</option></select>
+            <select class="ampm-select" id="mamaEndH" style="width:48px"></select>
+            <span style="font-weight:900">:</span>
+            <select class="ampm-select" id="mamaEndM" style="width:52px"></select>
+          </div>
+        </div>
+      </div>
+      <button onclick="applyMamaCard()" style="padding:12px;border-radius:12px;border:2px solid #CC3377;background:#FFF0F6;font-family:inherit;font-size:15px;font-weight:900;color:#CC3377;cursor:pointer">🔕 この時間にする</button>
+      <button onclick="closeMamaCard()" style="padding:10px;border-radius:12px;border:none;background:#F5F5F5;font-family:inherit;font-size:13px;font-weight:700;color:#AAA;cursor:pointer">やめる</button>
+    </div>
+  </div>
 </div>
 
 <!-- 写真ポップアップ -->
@@ -1513,6 +1591,20 @@ function buildTimeline() {
     `;
     tl.appendChild(wrapper);
   });
+
+  // ままのひとりじかん帯（使用中のみ）
+  if (dateStr(selectedDate) === dateStr(realToday) &&
+      _mamaCardState.endTime && new Date() < _mamaCardState.endTime) {
+    const now     = new Date();
+    const nowMin  = now.getHours() * 60 + now.getMinutes();
+    const endMin  = _mamaCardState.endTime.getHours() * 60 + _mamaCardState.endTime.getMinutes();
+    const topPx   = minToPx(nowMin);
+    const botPx   = minToPx(endMin);
+    const band    = document.createElement('div');
+    band.style.cssText = `position:absolute;right:0;top:${topPx}px;height:${botPx-topPx}px;width:22px;background:#FFD6EC;border-left:2px solid #CC3377;border-radius:0 8px 8px 0;display:flex;align-items:center;justify-content:center;font-size:12px;z-index:10;`;
+    band.textContent = '🔕';
+    tl.appendChild(band);
+  }
 
   // 現在時刻ライン（今日だけ）
   if (dateStr(selectedDate) === dateStr(realToday)) {
@@ -1978,6 +2070,126 @@ document.getElementById('nextMonth').addEventListener('click', () => {
 // ═══════════════════════════════════
 // だれがいる
 // ═══════════════════════════════════
+// ═══════════════════════════════════
+// ままのひとりじかん
+// ═══════════════════════════════════
+var _mamaCardState = { usedToday: 0, activeCard: -1, endTime: null, totalMin: 30 };
+
+function openMamaCard(idx) {
+  if (_mamaCardState.usedToday >= 3) return;
+  if (idx !== _mamaCardState.usedToday) return;
+  _mamaCardState._pendingCard = idx;
+
+  // セレクトの選択肢を初期化
+  const hSel = document.getElementById('mamaStartH');
+  const eSel = document.getElementById('mamaEndH');
+  const mSel = document.getElementById('mamaStartM');
+  const emSel= document.getElementById('mamaEndM');
+  if (hSel.options.length === 0) {
+    for (let h = 1; h <= 12; h++) {
+      hSel.add(new Option(h, h));
+      eSel.add(new Option(h, h));
+    }
+    ['00','05','10','15','20','25','30','35','40','45','50','55'].forEach(m => {
+      mSel.add(new Option(m, m));
+      emSel.add(new Option(m, m));
+    });
+  }
+
+  // デフォルト：今の時刻〜30分後
+  const now = new Date();
+  const end = new Date(now.getTime() + 30 * 60000);
+  setTimePicker('mamaStart', now.getHours(), now.getMinutes());
+  setTimePicker('mamaEnd',   end.getHours(), end.getMinutes());
+
+  document.getElementById('mamaCardOverlay').classList.add('open');
+}
+
+function setTimePicker(prefix, h24, m) {
+  const ampm = h24 < 12 ? 'AM' : 'PM';
+  const h12  = h24 === 0 ? 12 : h24 > 12 ? h24 - 12 : h24;
+  // 分を5分単位に丸める
+  const m5   = Math.round(m / 5) * 5 % 60;
+  document.getElementById(prefix + 'Ampm').value = ampm;
+  document.getElementById(prefix + 'H').value    = h12;
+  document.getElementById(prefix + 'M').value    = String(m5).padStart(2, '0');
+}
+
+function closeMamaCard() {
+  document.getElementById('mamaCardOverlay').classList.remove('open');
+}
+
+function applyMamaCard() {
+  // 時刻を読み取る
+  const sh = parseInt(document.getElementById('mamaStartH').value);
+  const sm = parseInt(document.getElementById('mamaStartM').value);
+  const sa = document.getElementById('mamaStartAmpm').value;
+  const eh = parseInt(document.getElementById('mamaEndH').value);
+  const em = parseInt(document.getElementById('mamaEndM').value);
+  const ea = document.getElementById('mamaEndAmpm').value;
+
+  const s24 = (sa === 'AM' ? (sh === 12 ? 0 : sh) : (sh === 12 ? 12 : sh + 12));
+  const e24 = (ea === 'AM' ? (eh === 12 ? 0 : eh) : (eh === 12 ? 12 : eh + 12));
+
+  const startMin = s24 * 60 + sm;
+  const endMin   = e24 * 60 + em;
+  const totalMin = endMin - startMin;
+
+  if (totalMin <= 0) { alert('おわりの時間は、はじまりより後にしてください'); return; }
+
+  closeMamaCard();
+  _mamaCardState.usedToday++;
+  _mamaCardState.activeCard = _mamaCardState._pendingCard;
+
+  const endTime = new Date();
+  endTime.setHours(e24, em, 0, 0);
+  _mamaCardState.endTime  = endTime;
+  _mamaCardState.totalMin = totalMin;
+
+  updateMamaCards();
+  updateMamaTimer();
+  buildTimeline();
+}
+
+function updateMamaCards() {
+  const { usedToday, activeCard, endTime } = _mamaCardState;
+  const isActive = endTime && new Date() < endTime;
+  for (let i = 0; i < 3; i++) {
+    const btn = document.getElementById('mamaCard' + i);
+    if (!btn) continue;
+    if (i === activeCard && isActive) btn.className = 'mama-card-btn active';
+    else if (i < usedToday) btn.className = 'mama-card-btn used';
+    else btn.className = 'mama-card-btn';
+  }
+}
+
+function updateMamaTimer() {
+  const wrap = document.getElementById('mamaTimerWrap');
+  if (!wrap) return;
+  const { endTime, totalMin } = _mamaCardState;
+  if (!endTime || new Date() >= endTime) {
+    wrap.style.display = 'none';
+    if (endTime && new Date() >= endTime) {
+      _mamaCardState.activeCard = -1;
+      _mamaCardState.endTime = null;
+      updateMamaCards();
+      buildTimeline();
+    }
+    return;
+  }
+  wrap.style.display = 'flex';
+  const remMin = Math.ceil((endTime - new Date()) / 60000);
+  const CIRC   = 2 * Math.PI * 54;
+  const filled = CIRC * Math.min(remMin / totalMin, 1);
+  document.getElementById('mamaMin').textContent = remMin;
+  const arc = document.getElementById('mamaArc');
+  if (arc) arc.style.strokeDasharray = `${filled} ${CIRC - filled}`;
+}
+
+document.getElementById('mamaCardOverlay').addEventListener('click', e => {
+  if (e.target === document.getElementById('mamaCardOverlay')) closeMamaCard();
+});
+
 function updateWhosHome() {
   const dStr = dateStr(selectedDate);
   const wh = (window._whosHome || {})[dStr] || { mama: false, papa: false };
