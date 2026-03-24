@@ -108,6 +108,7 @@ window._syncFromFirestore = function() {
 window._initApp = function() {
   allEvents = window._events || [];
   updateWhosHome();
+  initMamaSelects();
   events = getEventsForDate(selectedDate);
   updateHeader();
   buildMonthCalendar();
@@ -1191,31 +1192,28 @@ body {
 
 <!-- ままのひとりじかん 時間選択モーダル -->
 <div class="modal-overlay" id="mamaCardOverlay">
-  <div class="modal" style="max-width:300px;text-align:center">
+  <div class="modal" style="max-width:320px">
     <button class="modal-close" onclick="closeMamaCard()">✕</button>
     <div class="modal-title">🔕 ままのひとりじかん</div>
-    <div style="display:flex;flex-direction:column;gap:14px;margin-top:8px">
-      <div style="display:flex;align-items:center;gap:10px;justify-content:center">
-        <div style="text-align:center">
-          <div style="font-size:11px;font-weight:700;color:#AAA;margin-bottom:4px">はじまり</div>
-          <div style="display:flex;align-items:center;gap:4px">
-            <select class="ampm-select" id="mamaStartAmpm"><option>AM</option><option>PM</option></select>
-            <select class="ampm-select" id="mamaStartH" style="width:48px"></select>
-            <span style="font-weight:900">:</span>
-            <select class="ampm-select" id="mamaStartM" style="width:52px"></select>
-          </div>
-        </div>
-        <div style="font-size:18px;font-weight:900;color:#AAA;margin-top:16px">〜</div>
-        <div style="text-align:center">
-          <div style="font-size:11px;font-weight:700;color:#AAA;margin-bottom:4px">おわり</div>
-          <div style="display:flex;align-items:center;gap:4px">
-            <select class="ampm-select" id="mamaEndAmpm"><option>AM</option><option>PM</option></select>
-            <select class="ampm-select" id="mamaEndH" style="width:48px"></select>
-            <span style="font-weight:900">:</span>
-            <select class="ampm-select" id="mamaEndM" style="width:52px"></select>
-          </div>
-        </div>
+    <div class="form-group">
+      <label class="form-label">はじまり</label>
+      <div style="display:flex;align-items:center;gap:6px">
+        <select class="ampm-select" id="mamaStartAmpm"><option>AM</option><option>PM</option></select>
+        <select class="ampm-select" id="mamaStartH" style="width:52px"></select>
+        <span style="font-weight:900;font-size:16px">:</span>
+        <select class="ampm-select" id="mamaStartM" style="width:60px"></select>
       </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">おわり</label>
+      <div style="display:flex;align-items:center;gap:6px">
+        <select class="ampm-select" id="mamaEndAmpm"><option>AM</option><option>PM</option></select>
+        <select class="ampm-select" id="mamaEndH" style="width:52px"></select>
+        <span style="font-weight:900;font-size:16px">:</span>
+        <select class="ampm-select" id="mamaEndM" style="width:60px"></select>
+      </div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:8px;margin-top:8px">
       <button onclick="applyMamaCard()" style="padding:12px;border-radius:12px;border:2px solid #CC3377;background:#FFF0F6;font-family:inherit;font-size:15px;font-weight:900;color:#CC3377;cursor:pointer">🔕 この時間にする</button>
       <button onclick="closeMamaCard()" style="padding:10px;border-radius:12px;border:none;background:#F5F5F5;font-family:inherit;font-size:13px;font-weight:700;color:#AAA;cursor:pointer">やめる</button>
     </div>
@@ -2080,22 +2078,6 @@ function openMamaCard(idx) {
   if (idx !== _mamaCardState.usedToday) return;
   _mamaCardState._pendingCard = idx;
 
-  // セレクトの選択肢を初期化
-  const hSel = document.getElementById('mamaStartH');
-  const eSel = document.getElementById('mamaEndH');
-  const mSel = document.getElementById('mamaStartM');
-  const emSel= document.getElementById('mamaEndM');
-  if (hSel.options.length === 0) {
-    for (let h = 1; h <= 12; h++) {
-      hSel.add(new Option(h, h));
-      eSel.add(new Option(h, h));
-    }
-    ['00','05','10','15','20','25','30','35','40','45','50','55'].forEach(m => {
-      mSel.add(new Option(m, m));
-      emSel.add(new Option(m, m));
-    });
-  }
-
   // デフォルト：今の時刻〜30分後
   const now = new Date();
   const end = new Date(now.getTime() + 30 * 60000);
@@ -2103,6 +2085,21 @@ function openMamaCard(idx) {
   setTimePicker('mamaEnd',   end.getHours(), end.getMinutes());
 
   document.getElementById('mamaCardOverlay').classList.add('open');
+}
+
+function initMamaSelects() {
+  ['mamaStartH','mamaEndH'].forEach(id => {
+    const sel = document.getElementById(id);
+    if (sel && sel.options.length === 0) {
+      for (let h = 1; h <= 12; h++) sel.add(new Option(h, h));
+    }
+  });
+  ['mamaStartM','mamaEndM'].forEach(id => {
+    const sel = document.getElementById(id);
+    if (sel && sel.options.length === 0) {
+      ['00','05','10','15','20','25','30','35','40','45','50','55'].forEach(m => sel.add(new Option(m, m)));
+    }
+  });
 }
 
 function setTimePicker(prefix, h24, m) {
@@ -2143,8 +2140,8 @@ function applyMamaCard() {
 
   const endTime = new Date();
   endTime.setHours(e24, em, 0, 0);
-  _mamaCardState.endTime  = endTime;
-  _mamaCardState.totalMin = totalMin;
+  _mamaCardState.startTime = new Date();  // 開始時刻を記録
+  _mamaCardState.endTime   = endTime;
 
   updateMamaCards();
   updateMamaTimer();
@@ -2166,7 +2163,7 @@ function updateMamaCards() {
 function updateMamaTimer() {
   const wrap = document.getElementById('mamaTimerWrap');
   if (!wrap) return;
-  const { endTime, totalMin } = _mamaCardState;
+  const { endTime, startTime } = _mamaCardState;
   if (!endTime || new Date() >= endTime) {
     wrap.style.display = 'none';
     if (endTime && new Date() >= endTime) {
@@ -2178,9 +2175,10 @@ function updateMamaTimer() {
     return;
   }
   wrap.style.display = 'flex';
-  const remMin = Math.ceil((endTime - new Date()) / 60000);
-  const CIRC   = 2 * Math.PI * 54;
-  const filled = CIRC * Math.min(remMin / totalMin, 1);
+  const remMin  = Math.ceil((endTime - new Date()) / 60000);
+  const totalMin = Math.round((endTime - startTime) / 60000); // 実際の合計時間
+  const CIRC    = 2 * Math.PI * 54;
+  const filled  = CIRC * Math.min(remMin / Math.max(totalMin, 1), 1);
   document.getElementById('mamaMin').textContent = remMin;
   const arc = document.getElementById('mamaArc');
   if (arc) arc.style.strokeDasharray = `${filled} ${CIRC - filled}`;
