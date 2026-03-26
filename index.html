@@ -1073,6 +1073,7 @@ body {
   <!-- 追加ボタン -->
   <div class="sidebar-footer">
     <button class="add-btn" onclick="openAddModal()">＋ よていを入れる</button>
+    <button onclick="exportSchedule()" style="width:100%;margin-top:6px;padding:10px;border-radius:12px;border:1.5px solid var(--border);background:var(--panel-bg);font-family:inherit;font-size:12px;font-weight:700;color:var(--muted);cursor:pointer;">📋 よていをコピー（AI分析用）</button>
   </div>
 
   <!-- 予定リスト -->
@@ -1251,6 +1252,28 @@ body {
       <button onclick="applyMamaCard()" style="padding:12px;border-radius:12px;border:2px solid #CC3377;background:#FFF0F6;font-family:inherit;font-size:15px;font-weight:900;color:#CC3377;cursor:pointer">🔕 この時間にする</button>
       <button onclick="closeMamaCard()" style="padding:10px;border-radius:12px;border:none;background:#F5F5F5;font-family:inherit;font-size:13px;font-weight:700;color:#AAA;cursor:pointer">やめる</button>
     </div>
+  </div>
+</div>
+
+<!-- よていデータ出力モーダル -->
+<div class="modal-overlay" id="exportOverlay">
+  <div class="modal" style="max-width:340px">
+    <button class="modal-close" onclick="document.getElementById('exportOverlay').classList.remove('open')">✕</button>
+    <div class="modal-title">📋 よていをコピー（AI分析用）</div>
+    <div class="form-group">
+      <label class="form-label">かいし日</label>
+      <input class="form-input" type="date" id="exportFrom">
+    </div>
+    <div class="form-group">
+      <label class="form-label">おわり日</label>
+      <input class="form-input" type="date" id="exportTo">
+    </div>
+    <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:12px">
+      <button onclick="setExportRange(0)" style="padding:8px;border-radius:10px;border:1.5px solid var(--border);background:var(--block-bg);font-family:inherit;font-size:12px;font-weight:700;cursor:pointer;">きょうだけ</button>
+      <button onclick="setExportRange(7)" style="padding:8px;border-radius:10px;border:1.5px solid var(--border);background:var(--block-bg);font-family:inherit;font-size:12px;font-weight:700;cursor:pointer;">過去7日間</button>
+      <button onclick="setExportRange(30)" style="padding:8px;border-radius:10px;border:1.5px solid var(--border);background:var(--block-bg);font-family:inherit;font-size:12px;font-weight:700;cursor:pointer;">過去30日間</button>
+    </div>
+    <button onclick="doExport()" style="width:100%;padding:12px;border-radius:12px;border:none;background:#2B6EFF;color:#fff;font-family:inherit;font-size:14px;font-weight:900;cursor:pointer;">📋 コピーする</button>
   </div>
 </div>
 
@@ -2324,6 +2347,71 @@ function checkAlarms() {
         _firedAlarms.add(key); playAlarmEnd();
       }
     }
+  });
+}
+
+// ═══════════════════════════════════
+// よていデータ出力（AI分析用）
+// ═══════════════════════════════════
+function exportSchedule() {
+  // デフォルト：今日
+  document.getElementById('exportFrom').value = dateStr(selectedDate);
+  document.getElementById('exportTo').value   = dateStr(selectedDate);
+  document.getElementById('exportOverlay').classList.add('open');
+}
+
+function setExportRange(days) {
+  const to   = new Date();
+  const from = new Date();
+  from.setDate(from.getDate() - days);
+  document.getElementById('exportFrom').value = dateStr(from);
+  document.getElementById('exportTo').value   = dateStr(to);
+}
+
+function doExport() {
+  const fromStr = document.getElementById('exportFrom').value;
+  const toStr   = document.getElementById('exportTo').value;
+  if (!fromStr || !toStr) { alert('日付を選んでください'); return; }
+
+  const YOUBI_JP = ['日','月','火','水','木','金','土'];
+  function durStr(start, end) {
+    const diff = timeToMin(end) - timeToMin(start);
+    if (diff <= 0) return '';
+    const h = Math.floor(diff / 60), min = diff % 60;
+    if (h > 0 && min > 0) return `（${h}時間${min}分）`;
+    if (h > 0) return `（${h}時間）`;
+    return `（${min}分）`;
+  }
+
+  // 日付を1日ずつ走査
+  const from = new Date(fromStr);
+  const to   = new Date(toStr);
+  let text = `【よていデータ】${fromStr} 〜 ${toStr}\n`;
+
+  for (let d = new Date(from); d <= to; d.setDate(d.getDate() + 1)) {
+    const evs = getEventsForDate(new Date(d));
+    if (!evs.length) continue;
+    const m = d.getMonth() + 1, day = d.getDate(), w = YOUBI_JP[d.getDay()];
+    text += `\n■ ${m}月${day}日（${w}）\n`;
+    evs.forEach(ev => {
+      text += `- ${ev.name}　${formatAmPm(ev.start)}〜${formatAmPm(ev.end)}${durStr(ev.start, ev.end)}\n`;
+    });
+  }
+
+  document.getElementById('exportOverlay').classList.remove('open');
+
+  navigator.clipboard.writeText(text).then(() => {
+    alert('コピーしました！\nClaudeに貼り付けて分析してもらえます。');
+  }).catch(() => {
+    const overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:500;display:flex;align-items:center;justify-content:center;';
+    overlay.innerHTML = `
+      <div style="background:#fff;border-radius:16px;padding:24px;width:90%;max-width:480px;max-height:80vh;overflow-y:auto;">
+        <div style="font-size:15px;font-weight:900;margin-bottom:12px;">📋 よていデータ（コピーしてください）</div>
+        <textarea readonly style="width:100%;height:240px;border:1.5px solid #E4E4E4;border-radius:8px;padding:10px;font-size:12px;font-family:inherit;resize:none;">${text}</textarea>
+        <button onclick="this.closest('div').parentElement.remove()" style="margin-top:12px;width:100%;padding:10px;border-radius:10px;border:none;background:#2B6EFF;color:#fff;font-family:inherit;font-size:14px;font-weight:900;cursor:pointer;">とじる</button>
+      </div>`;
+    document.body.appendChild(overlay);
   });
 }
 
