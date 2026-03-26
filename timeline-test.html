@@ -53,14 +53,12 @@ window.saveToFirestore = async () => {
 
 // ままカード状態はlocalStorageに保存（当日限り・デバイス依存）
 function saveMamaCardLocal() {
-  const s = window._mamaCardState;
   const today = new Date().toDateString();
-  localStorage.setItem('mamaCard_' + today, JSON.stringify({
-    usedToday:  s.usedToday,
-    activeCard: s.activeCard,
-    endTime:    s.endTime   ? s.endTime.toISOString()   : null,
-    startTime:  s.startTime ? s.startTime.toISOString() : null,
+  const data = window._mamaCardState.slots.map(s => ({
+    startTime: s && s.startTime ? s.startTime.toISOString() : null,
+    endTime:   s && s.endTime   ? s.endTime.toISOString()   : null,
   }));
+  localStorage.setItem('mamaCard_' + today, JSON.stringify(data));
 }
 
 function loadMamaCardLocal() {
@@ -68,15 +66,12 @@ function loadMamaCardLocal() {
   try {
     const raw = localStorage.getItem('mamaCard_' + today);
     if (!raw) return;
-    const d = JSON.parse(raw);
-    window._mamaCardState.usedToday  = d.usedToday  || 0;
-    window._mamaCardState.activeCard = d.activeCard ?? -1;
-    window._mamaCardState.endTime    = d.endTime   ? new Date(d.endTime)   : null;
-    window._mamaCardState.startTime  = d.startTime ? new Date(d.startTime) : null;
-    // 期限切れなら activeCard リセット
-    if (window._mamaCardState.endTime && new Date() >= window._mamaCardState.endTime) {
-      window._mamaCardState.activeCard = -1;
-      window._mamaCardState.endTime    = null;
+    const data = JSON.parse(raw);
+    if (Array.isArray(data)) {
+      window._mamaCardState.slots = data.map(s => ({
+        startTime: s.startTime ? new Date(s.startTime) : null,
+        endTime:   s.endTime   ? new Date(s.endTime)   : null,
+      }));
     }
   } catch(e) { /* 無視 */ }
 }
@@ -173,6 +168,7 @@ window._initApp = function() {
   --text:         #111111;
   --muted:        #AAAAAA;
   --block-bg:     #EEEAE1;
+  --test-banner: #FF6B00;
   --block-border: rgba(0,0,0,0.08);
   --now:          #2B6EFF;
   --now-glow:     rgba(43,110,255,0.22);
@@ -1629,21 +1625,20 @@ function buildTimeline() {
     tl.appendChild(wrapper);
   });
 
-  // ままのひとりじかん帯（使用中のみ）
-  if (dateStr(selectedDate) === dateStr(realToday) &&
-      _mamaCardState.endTime && new Date() < _mamaCardState.endTime) {
-    const nowMin  = new Date().getHours() * 60 + new Date().getMinutes();
-    const startMin = _mamaCardState.startTime
-      ? _mamaCardState.startTime.getHours() * 60 + _mamaCardState.startTime.getMinutes()
-      : nowMin;
-    const endMin  = _mamaCardState.endTime.getHours() * 60 + _mamaCardState.endTime.getMinutes();
-    const topPx   = minToPx(Math.max(startMin, START_HOUR * 60));
-    const botPx   = minToPx(Math.min(endMin,   END_HOUR  * 60));
-    const band    = document.createElement('div');
-    // タイムライン右端に帯を置く（event-wrapperと重ならないようright:0, width:24px）
-    band.style.cssText = `position:absolute;right:0;top:${topPx}px;height:${Math.max(botPx-topPx,20)}px;width:24px;background:#FFD6EC;border-left:2px solid #CC3377;border-radius:0 6px 6px 0;display:flex;align-items:center;justify-content:center;font-size:11px;z-index:5;`;
-    band.textContent = '🔕';
-    tl.appendChild(band);
+  // ままのひとりじかん帯（登録済みスロットをすべて表示）
+  if (dateStr(selectedDate) === dateStr(realToday)) {
+    window._mamaCardState.slots.forEach(slot => {
+      if (!slot || !slot.startTime || !slot.endTime) return;
+      const startMin = slot.startTime.getHours() * 60 + slot.startTime.getMinutes();
+      const endMin   = slot.endTime.getHours()   * 60 + slot.endTime.getMinutes();
+      const topPx    = minToPx(Math.max(startMin, START_HOUR * 60));
+      const botPx    = minToPx(Math.min(endMin,   END_HOUR  * 60));
+      if (botPx <= topPx) return;
+      const band = document.createElement('div');
+      band.style.cssText = `position:absolute;right:0;top:${topPx}px;height:${Math.max(botPx-topPx,20)}px;width:24px;background:#FFD6EC;border-left:2px solid #CC3377;border-radius:0 6px 6px 0;display:flex;align-items:center;justify-content:center;font-size:11px;z-index:5;`;
+      band.textContent = '🔕';
+      tl.appendChild(band);
+    });
   }
 
   // 現在時刻ライン（今日だけ）
@@ -2108,42 +2103,36 @@ document.getElementById('nextMonth').addEventListener('click', () => {
 });
 
 // ═══════════════════════════════════
-// だれがいる
-// ═══════════════════════════════════
-// ═══════════════════════════════════
 // ままのひとりじかん
 // ═══════════════════════════════════
-window._mamaCardState = { usedToday: 0, activeCard: -1, endTime: null, totalMin: 30 };
+// 3枚それぞれ独立したスロット
+window._mamaCardState = {
+  slots: [
+    { startTime: null, endTime: null }, // カード1
+    { startTime: null, endTime: null }, // カード2
+    { startTime: null, endTime: null }, // カード3
+  ]
+};
 
 function openMamaCard(idx) {
-  // ピンク（未使用）→ 新規。グレー（使用済み・使用中）→ 編集
-  const isUsed = idx < _mamaCardState.usedToday;
-  const isNext = idx === _mamaCardState.usedToday;
-
-  if (!isUsed && !isNext) return; // まだ使えないカード（2枚目以降）
-  if (!isUsed && _mamaCardState.usedToday >= 3) return; // 使い切り
-
-  _mamaCardState._pendingCard = idx;
-  _mamaCardState._isEdit = isUsed;
-
+  window._mamaCardState._pendingCard = idx;
   initMamaSelects();
 
-  if (isUsed && _mamaCardState.startTime && _mamaCardState.endTime) {
-    // 編集モード：登録済みの時刻を復元
-    setTimePicker('mamaStart', _mamaCardState.startTime.getHours(), _mamaCardState.startTime.getMinutes());
-    setTimePicker('mamaEnd',   _mamaCardState.endTime.getHours(),   _mamaCardState.endTime.getMinutes());
+  const slot = window._mamaCardState.slots[idx];
+  if (slot.startTime && slot.endTime) {
+    // 登録済み → その時刻を復元
+    setTimePicker('mamaStart', slot.startTime.getHours(), slot.startTime.getMinutes());
+    setTimePicker('mamaEnd',   slot.endTime.getHours(),   slot.endTime.getMinutes());
   } else {
-    // 新規モード：デフォルト今の時刻〜30分後
+    // 未登録 → 今の時刻〜30分後
     const now = new Date();
     const end = new Date(now.getTime() + 30 * 60000);
     setTimePicker('mamaStart', now.getHours(), now.getMinutes());
     setTimePicker('mamaEnd',   end.getHours(), end.getMinutes());
   }
 
-  // モーダルタイトルを切り替え
   document.querySelector('#mamaCardOverlay .modal-title').textContent =
-    isUsed ? '🔕 じかんをへんこうする' : '🔕 ままのひとりじかん';
-
+    slot.startTime ? '🔕 じかんをへんこうする' : '🔕 ままのひとりじかん';
   document.getElementById('mamaCardOverlay').classList.add('open');
 }
 
@@ -2177,7 +2166,6 @@ function closeMamaCard() {
 }
 
 function applyMamaCard() {
-  // 時刻を読み取る
   const sh = parseInt(document.getElementById('mamaStartH').value);
   const sm = parseInt(document.getElementById('mamaStartM').value);
   const sa = document.getElementById('mamaStartAmpm').value;
@@ -2188,56 +2176,34 @@ function applyMamaCard() {
   const s24 = (sa === 'AM' ? (sh === 12 ? 0 : sh) : (sh === 12 ? 12 : sh + 12));
   const e24 = (ea === 'AM' ? (eh === 12 ? 0 : eh) : (eh === 12 ? 12 : eh + 12));
 
-  const startMin = s24 * 60 + sm;
-  const endMin   = e24 * 60 + em;
-  const totalMin = endMin - startMin;
-
-  if (totalMin <= 0) { alert('おわりの時間は、はじまりより後にしてください'); return; }
+  if (e24 * 60 + em <= s24 * 60 + sm) {
+    alert('おわりの時間は、はじまりより後にしてください'); return;
+  }
 
   closeMamaCard();
 
-  const isEdit = _mamaCardState._isEdit;
-  if (!isEdit) {
-    _mamaCardState.usedToday++;
-    _mamaCardState.activeCard = _mamaCardState._pendingCard;
-  }
+  const idx = window._mamaCardState._pendingCard;
+  const startTime = new Date(); startTime.setHours(s24, sm, 0, 0);
+  const endTime   = new Date(); endTime.setHours(e24, em, 0, 0);
+  window._mamaCardState.slots[idx] = { startTime, endTime };
 
-  // 選択した時刻でDateを作成
-  const startTime = new Date();
-  startTime.setHours(s24, sm, 0, 0);
-  const endTime = new Date();
-  endTime.setHours(e24, em, 0, 0);
-  _mamaCardState.startTime = startTime;
-  _mamaCardState.endTime   = endTime;
-
-  updateMamaCards();
-  updateMamaTimer();
+  window.updateMamaCards();
+  window.updateMamaTimer();
   buildTimeline();
-  saveMamaCardLocal(); // FirestoreではなくlocalStorageに保存
+  saveMamaCardLocal();
 }
 
 function updateMamaCards() {
-  const { usedToday, activeCard, endTime } = window._mamaCardState;
-  const isActive = endTime && new Date() < endTime;
   for (let i = 0; i < 3; i++) {
-    const btn = document.getElementById('mamaCard' + i);
+    const btn  = document.getElementById('mamaCard' + i);
     if (!btn) continue;
-    if (i === activeCard && isActive) {
-      // 使用中：グレー（編集可能）
-      btn.className = 'mama-card-btn used';
-      btn.disabled = false;
-    } else if (i < usedToday) {
-      // 使用済み（時間切れ）：グレー（編集可能）
-      btn.className = 'mama-card-btn used';
-      btn.disabled = false;
-    } else if (i === usedToday) {
-      // 次に使えるカード：ピンク（新規）
+    const slot = window._mamaCardState.slots[i];
+    if (!slot || !slot.startTime) {
       btn.className = 'mama-card-btn';
-      btn.disabled = false;
+      btn.disabled  = false;
     } else {
-      // まだ使えない：薄いピンク（無効）
-      btn.className = 'mama-card-btn unavailable';
-      btn.disabled = true;
+      btn.className = 'mama-card-btn used';
+      btn.disabled  = false;
     }
   }
 }
@@ -2245,31 +2211,21 @@ function updateMamaCards() {
 function updateMamaTimer() {
   const wrap = document.getElementById('mamaTimerWrap');
   if (!wrap) return;
-  const { endTime, startTime } = window._mamaCardState;
   const now = new Date();
 
-  // 終了時刻過ぎ → 非表示・リセット
-  if (!endTime || now >= endTime) {
-    wrap.style.display = 'none';
-    if (endTime && now >= endTime) {
-      window._mamaCardState.activeCard = -1;
-      window._mamaCardState.endTime = null;
-      updateMamaCards();
-      if (typeof buildTimeline === 'function') buildTimeline();
-    }
-    return;
-  }
+  // 現在進行中のスロットを探す
+  const active = window._mamaCardState.slots.find(s =>
+    s && s.startTime && s.endTime && now >= s.startTime && now < s.endTime
+  );
 
-  // 開始時刻前 → 非表示（タイマー未開始）
-  if (startTime && now < startTime) {
+  if (!active) {
     wrap.style.display = 'none';
     return;
   }
 
-  // 開始〜終了の間 → タイマー表示
   wrap.style.display = 'flex';
-  const remMin   = Math.ceil((endTime - now) / 60000);
-  const totalMin = startTime ? Math.round((endTime - startTime) / 60000) : remMin;
+  const remMin   = Math.ceil((active.endTime - now) / 60000);
+  const totalMin = Math.round((active.endTime - active.startTime) / 60000);
   const CIRC     = 2 * Math.PI * 54;
   const filled   = CIRC * Math.min(remMin / Math.max(totalMin, 1), 1);
   document.getElementById('mamaMin').textContent = remMin;
