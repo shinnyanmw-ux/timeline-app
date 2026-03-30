@@ -363,6 +363,7 @@ body {
   padding: 36px 24px 32px;
   gap: 20px;
   overflow: hidden;
+  position: relative;
 }
 
 .nn-row {
@@ -819,7 +820,50 @@ body {
 .mama-timer-wrap { width: 100%; display: flex; flex-direction: column; align-items: center; gap: 6px; background: #FFF0F6; border-radius: 12px; padding: 10px 8px; border: 1.5px solid rgba(204,51,119,0.2); }
 .mama-timer-label { font-size: 11px; font-weight: 900; color: #CC3377; text-align: center; line-height: 1.5; }
 
-/* ── だれがいるバッジ ── */
+/* ── いま・つぎ 全画面オーバーレイ ── */
+.nn-fullscreen-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: var(--panel-bg);
+  z-index: 300;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+  padding: 40px 32px;
+}
+.nn-fullscreen-overlay.open { display: flex; }
+.nn-fullscreen-overlay .nn-row {
+  width: 100%;
+  max-width: 480px;
+}
+.nn-fullscreen-overlay .nn-divider { width: 100%; max-width: 480px; }
+.nn-fullscreen-overlay .nn-timer-section { align-items: center; }
+.nn-fullscreen-overlay .nn-timer-wrap {
+  width: min(70vw, 70vh);
+  height: min(70vw, 70vh);
+}
+.nn-fullscreen-overlay .nn-timer-svg {
+  width: 100%;
+  height: 100%;
+}
+.nn-fullscreen-overlay .nn-timer-min  { font-size: clamp(72px, 18vw, 140px); }
+.nn-fullscreen-overlay .nn-timer-unit { font-size: clamp(20px, 5vw, 36px); }
+.nn-fullscreen-overlay .nn-timer-label { font-size: 14px; }
+.nn-fullscreen-close {
+  position: fixed;
+  top: 16px; right: 16px;
+  width: 40px; height: 40px;
+  border-radius: 10px;
+  border: 1.5px solid var(--border);
+  background: var(--block-bg);
+  cursor: pointer;
+  font-size: 18px;
+  display: flex; align-items: center; justify-content: center;
+  color: var(--muted);
+  z-index: 301;
+}
 .home-badges { display: flex; gap: 6px; align-items: center; flex-shrink: 0; }
 .home-badge {
   padding: 5px 16px; border-radius: 20px;
@@ -1085,9 +1129,7 @@ body {
 
 <!-- ══ 右メインパネル ══ -->
 <div class="main">
-  <!-- テスト環境バナー -->
   <div style="background:#FF6B00;color:#fff;font-size:13px;font-weight:900;text-align:center;padding:6px;letter-spacing:0.08em;flex-shrink:0;">🧪 テスト環境 — 本番データには影響しません 🧪</div>
-
   <div class="main-header" style="background:#FFF3E0;border-bottom-color:#FF6B00;">
     <div class="main-header-date-group">
       <div class="main-header-date"  id="mainDate"></div>
@@ -1170,6 +1212,7 @@ body {
 
 <!-- ══ いま・つぎパネル ══ -->
 <div class="now-next-panel" id="nowNextPanel">
+  <button onclick="toggleNowNextFullscreen()" id="nnExpandBtn" title="全画面で見る" style="position:absolute;top:10px;right:10px;width:28px;height:28px;border-radius:6px;border:1.5px solid var(--border);background:var(--block-bg);cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center;color:var(--muted);">⤢</button>
   <div class="nn-row is-now">
     <div class="nn-label">いま</div>
     <div class="nn-value" id="nnNow">—</div>
@@ -1258,6 +1301,57 @@ body {
   </div>
 </div>
 
+<!-- いま・つぎ 全画面オーバーレイ -->
+<div class="nn-fullscreen-overlay" id="nnFullscreen">
+  <button class="nn-fullscreen-close" onclick="toggleNowNextFullscreen()">✕</button>
+  <div class="nn-row is-now">
+    <div class="nn-label">いま</div>
+    <div class="nn-value" id="nnNowFS">—</div>
+  </div>
+  <div class="nn-divider"></div>
+  <div class="nn-row">
+    <div class="nn-label">つぎ</div>
+    <div class="nn-value" id="nnNextFS">—</div>
+  </div>
+  <div class="nn-divider"></div>
+  <div class="nn-timer-section">
+    <div class="nn-timer-label" id="nnLabelFS">あと</div>
+    <div class="nn-timer-wrap">
+      <svg class="nn-timer-svg" viewBox="0 0 128 128">
+        <circle class="nn-timer-track" cx="64" cy="64" r="54"/>
+        <circle class="nn-timer-arc" id="nnArcFS" cx="64" cy="64" r="54"
+          stroke-dasharray="0 339" stroke-dashoffset="0"/>
+      </svg>
+      <div class="nn-timer-center">
+        <div class="nn-timer-min" id="nnMinFS">—</div>
+        <div class="nn-timer-unit" id="nnUnitFS">ふん</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- よていデータ出力モーダル -->
+<div class="modal-overlay" id="exportOverlay">
+  <div class="modal" style="max-width:340px">
+    <button class="modal-close" onclick="document.getElementById('exportOverlay').classList.remove('open')">✕</button>
+    <div class="modal-title">📋 よていをコピー（AI分析用）</div>
+    <div class="form-group">
+      <label class="form-label">かいし日</label>
+      <input class="form-input" type="date" id="exportFrom">
+    </div>
+    <div class="form-group">
+      <label class="form-label">おわり日</label>
+      <input class="form-input" type="date" id="exportTo">
+    </div>
+    <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:12px">
+      <button onclick="setExportRange(0)" style="padding:8px;border-radius:10px;border:1.5px solid var(--border);background:var(--block-bg);font-family:inherit;font-size:12px;font-weight:700;cursor:pointer;">きょうだけ</button>
+      <button onclick="setExportRange(7)" style="padding:8px;border-radius:10px;border:1.5px solid var(--border);background:var(--block-bg);font-family:inherit;font-size:12px;font-weight:700;cursor:pointer;">過去7日間</button>
+      <button onclick="setExportRange(30)" style="padding:8px;border-radius:10px;border:1.5px solid var(--border);background:var(--block-bg);font-family:inherit;font-size:12px;font-weight:700;cursor:pointer;">過去30日間</button>
+    </div>
+    <button onclick="doExport()" style="width:100%;padding:12px;border-radius:12px;border:none;background:#2B6EFF;color:#fff;font-family:inherit;font-size:14px;font-weight:900;cursor:pointer;">📋 コピーする</button>
+  </div>
+</div>
+
 <!-- 写真ポップアップ -->
 <div class="modal-overlay" id="photoOverlay">
   <div class="modal">
@@ -1316,6 +1410,15 @@ body {
       <div class="form-group">
         <label class="form-label">曜日</label>
         <div class="day-checks" id="dayChecks"></div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">くりかえし期間（任意）</label>
+        <div style="display:flex;align-items:center;gap:8px">
+          <input class="form-input" id="fRepeatFrom" type="date" style="flex:1">
+          <span style="color:var(--muted);font-weight:700;flex-shrink:0">〜</span>
+          <input class="form-input" id="fRepeatTo" type="date" style="flex:1">
+        </div>
+        <div style="font-size:11px;color:var(--muted);margin-top:4px">空白にすると期間制限なし</div>
       </div>
     </div>
     <div id="onceSection" style="display:none">
@@ -1417,7 +1520,14 @@ function getEventsForDate(date) {
   const dow  = date.getDay();
   const dStr = dateStr(date);
   return allEvents
-    .filter(ev => ev.onceDate ? ev.onceDate === dStr : (ev.days || []).includes(dow))
+    .filter(ev => {
+      if (ev.onceDate) return ev.onceDate === dStr;
+      if (!(ev.days || []).includes(dow)) return false;
+      // 期間フィルター
+      if (ev.repeatFrom && dStr < ev.repeatFrom) return false;
+      if (ev.repeatTo   && dStr > ev.repeatTo)   return false;
+      return true;
+    })
     .sort((a,b) => timeToMin(a.start) - timeToMin(b.start));
 }
 
@@ -1750,20 +1860,20 @@ function updateNowNext(totalMin) {
   // 残り分
   const remMin = segEnd !== null ? Math.max(0, Math.ceil(segEnd - totalMin)) : null;
 
-  // いま（PC + モバイル）
-  const nowEl = document.getElementById('nnNow');
+  // いま（PC + モバイル + FS）
+  const nowEl  = document.getElementById('nnNow');
   const nowElM = document.getElementById('nnNowMobile');
-  const nowText = (isJiyu || !currentEv) ? 'じゆう' : currentEv.emoji + ' ' + currentEv.name;
+  const nowElFS= document.getElementById('nnNowFS');
+  const nowText  = (isJiyu || !currentEv) ? 'じゆう' : currentEv.emoji + ' ' + currentEv.name;
   const nowClass = (isJiyu || !currentEv) ? 'nn-value is-jiyu' : 'nn-value';
-  if (nowEl)  { nowEl.textContent = nowText;  nowEl.className = nowClass; }
-  if (nowElM) { nowElM.textContent = nowText; nowElM.className = nowClass; }
+  [nowEl, nowElM, nowElFS].forEach(el => { if(el){ el.textContent = nowText; el.className = nowClass; }});
 
-  // つぎ（PC + モバイル）
-  const nextEl = document.getElementById('nnNext');
+  // つぎ（PC + モバイル + FS）
+  const nextEl  = document.getElementById('nnNext');
   const nextElM = document.getElementById('nnNextMobile');
+  const nextElFS= document.getElementById('nnNextFS');
   const nextText = nextEv ? nextEv.emoji + ' ' + nextEv.name : '—';
-  if (nextEl)  { nextEl.textContent = nextText;  nextEl.className = 'nn-value'; }
-  if (nextElM) { nextElM.textContent = nextText; nextElM.className = 'nn-value'; }
+  [nextEl, nextElM, nextElFS].forEach(el => { if(el){ el.textContent = nextText; el.className = 'nn-value'; }});
 
   // タイマーラベル（共通化）
   const labelText = isJiyu
@@ -1771,8 +1881,8 @@ function updateNowNext(totalMin) {
     : 'いまのよていが\nおわるまで';
   const labelEl  = document.getElementById('nnLabel');
   const labelElM = document.getElementById('nnLabelMobile');
-  if (labelEl)  labelEl.textContent  = labelText;
-  if (labelElM) labelElM.textContent = labelText;
+  const labelElFS= document.getElementById('nnLabelFS');
+  [labelEl, labelElM, labelElFS].forEach(el => { if(el) el.textContent = labelText; });
 
   // タイマー表示（60分固定スケール・1時間超は待機）
   const waitingEl   = document.getElementById('nnWaiting');
@@ -1785,39 +1895,40 @@ function updateNowNext(totalMin) {
   const minElM      = document.getElementById('nnMinMobile');
   const unitElM     = document.getElementById('nnUnitMobile');
   const arcM        = document.getElementById('nnArcMobile');
+  const minElFS     = document.getElementById('nnMinFS');
+  const unitElFS    = document.getElementById('nnUnitFS');
+  const arcFS       = document.getElementById('nnArcFS');
   const waitTimeEl  = document.getElementById('nnWaitingTime');
   const waitTimeElM = document.getElementById('nnWaitingTimeMobile');
 
   if (remMin === null) {
-    // 予定なし
     [waitingEl, waitingElM].forEach(el => { if(el) el.style.display = 'none'; });
     [circleEl, circleElM].forEach(el => { if(el) el.style.display = 'flex'; });
-    [minEl, minElM].forEach(el   => { if(el) el.textContent = '—'; });
-    [unitEl, unitElM].forEach(el => { if(el) el.textContent = ''; });
-    [arc, arcM].forEach(el => { if(el) el.style.strokeDasharray = `0 ${CIRC}`; });
+    [minEl, minElM, minElFS].forEach(el   => { if(el) el.textContent = '—'; });
+    [unitEl, unitElM, unitElFS].forEach(el => { if(el) el.textContent = ''; });
+    [arc, arcM, arcFS].forEach(el => { if(el) el.style.strokeDasharray = `0 ${CIRC}`; });
 
   } else if (remMin > 60) {
-    // 1時間超 → 待機表示
     [waitingEl, waitingElM].forEach(el => { if(el) el.style.display = 'block'; });
     [circleEl, circleElM].forEach(el  => { if(el) el.style.display = 'none'; });
     const h = Math.floor(remMin / 60), m = remMin % 60;
     const txt = m > 0 ? `${h}じかん${m}ふん` : `${h}じかん`;
     [waitTimeEl, waitTimeElM].forEach(el => { if(el) el.textContent = txt; });
+    // FSは円タイマーで60分固定
+    [minElFS].forEach(el => { if(el) el.textContent = remMin; });
+    [unitElFS].forEach(el => { if(el) el.textContent = 'ふん'; });
+    if (arcFS) { arcFS.style.strokeDasharray = `0 ${CIRC}`; arcFS.className = 'nn-timer-arc'; }
 
   } else {
-    // 60分以内 → 円タイマー（60分固定スケール）
     [waitingEl, waitingElM].forEach(el => { if(el) el.style.display = 'none'; });
     [circleEl, circleElM].forEach(el  => { if(el) el.style.display = 'flex'; });
-    const ratio  = remMin / 60; // 常に60分を満タンとする
+    const ratio  = remMin / 60;
     const filled = CIRC * ratio;
     const arcCls = 'nn-timer-arc' + (isJiyu ? ' jiyu' : '');
-    [minEl, minElM].forEach(el   => { if(el) el.textContent = remMin; });
-    [unitEl, unitElM].forEach(el => { if(el) el.textContent = 'ふん'; });
-    [arc, arcM].forEach(el => {
-      if(el) {
-        el.style.strokeDasharray = `${filled} ${CIRC - filled}`;
-        el.className = arcCls;
-      }
+    [minEl, minElM, minElFS].forEach(el   => { if(el) el.textContent = remMin; });
+    [unitEl, unitElM, unitElFS].forEach(el => { if(el) el.textContent = 'ふん'; });
+    [arc, arcM, arcFS].forEach(el => {
+      if(el) { el.style.strokeDasharray = `${filled} ${CIRC - filled}`; el.className = arcCls; }
     });
   }
 }
@@ -2026,8 +2137,10 @@ function openAddModal(editEv = null) {
   setTimeParts(editEv?.start, 'fStartAmpm','fStartH','fStartM');
   setTimeParts(editEv?.end,   'fEndAmpm',  'fEndH',  'fEndM');
 
-  document.getElementById('fAlarmStart').value = editEv?.alarmStart ?? 5;
-  document.getElementById('fAlarmEnd').value   = editEv?.alarmEnd   ?? 5;
+  document.getElementById('fAlarmStart').value  = editEv?.alarmStart ?? 5;
+  document.getElementById('fAlarmEnd').value    = editEv?.alarmEnd   ?? 5;
+  document.getElementById('fRepeatFrom').value  = editEv?.repeatFrom || '';
+  document.getElementById('fRepeatTo').value    = editEv?.repeatTo   || '';
   document.getElementById('fName').value = editEv?.name || '';
   document.getElementById('addOverlay').classList.add('open');
 }
@@ -2050,13 +2163,15 @@ function submitEvent() {
 
   const mode = document.querySelector('input[name="repeatMode"]:checked').value;
   let newEv;
-  const alarmStart = parseInt(document.getElementById('fAlarmStart').value);
-  const alarmEnd   = parseInt(document.getElementById('fAlarmEnd').value);
+  const alarmStart  = parseInt(document.getElementById('fAlarmStart').value);
+  const alarmEnd    = parseInt(document.getElementById('fAlarmEnd').value);
+  const repeatFrom  = document.getElementById('fRepeatFrom').value || null;
+  const repeatTo    = document.getElementById('fRepeatTo').value   || null;
 
   if (mode === 'weekly') {
     const days = [...document.querySelectorAll('#dayChecks input:checked')].map(el => parseInt(el.value));
     if (!days.length) { alert('曜日を選んでください'); return; }
-    newEv = { name, start, end, emoji: selectedEmoji, days, photos: 0, alarmStart, alarmEnd };
+    newEv = { name, start, end, emoji: selectedEmoji, days, photos: 0, alarmStart, alarmEnd, repeatFrom, repeatTo };
   } else {
     const dateVal = document.getElementById('fDate').value;
     if (!dateVal) { alert('日にちを選んでください'); return; }
@@ -2335,29 +2450,51 @@ function checkAlarms() {
 // よていデータ出力（AI分析用）
 // ═══════════════════════════════════
 function exportSchedule() {
-  const evs = getEventsForDate(selectedDate);
-  if (!evs.length) { alert('よていがありません'); return; }
+  // デフォルト：今日
+  document.getElementById('exportFrom').value = dateStr(selectedDate);
+  document.getElementById('exportTo').value   = dateStr(selectedDate);
+  document.getElementById('exportOverlay').classList.add('open');
+}
+
+function setExportRange(days) {
+  const to   = new Date();
+  const from = new Date();
+  from.setDate(from.getDate() - days);
+  document.getElementById('exportFrom').value = dateStr(from);
+  document.getElementById('exportTo').value   = dateStr(to);
+}
+
+function doExport() {
+  const fromStr = document.getElementById('exportFrom').value;
+  const toStr   = document.getElementById('exportTo').value;
+  if (!fromStr || !toStr) { alert('日付を選んでください'); return; }
 
   const YOUBI_JP = ['日','月','火','水','木','金','土'];
-  const y = selectedDate.getFullYear();
-  const m = selectedDate.getMonth() + 1;
-  const d = selectedDate.getDate();
-  const w = YOUBI_JP[selectedDate.getDay()];
-
   function durStr(start, end) {
     const diff = timeToMin(end) - timeToMin(start);
     if (diff <= 0) return '';
-    const h = Math.floor(diff / 60);
-    const min = diff % 60;
+    const h = Math.floor(diff / 60), min = diff % 60;
     if (h > 0 && min > 0) return `（${h}時間${min}分）`;
     if (h > 0) return `（${h}時間）`;
     return `（${min}分）`;
   }
 
-  let text = `【きょうのよてい】${y}年${m}月${d}日（${w}）\n\n`;
-  evs.forEach(ev => {
-    text += `- ${ev.name}　${formatAmPm(ev.start)}〜${formatAmPm(ev.end)}${durStr(ev.start, ev.end)}\n`;
-  });
+  // 日付を1日ずつ走査
+  const from = new Date(fromStr);
+  const to   = new Date(toStr);
+  let text = `【よていデータ】${fromStr} 〜 ${toStr}\n`;
+
+  for (let d = new Date(from); d <= to; d.setDate(d.getDate() + 1)) {
+    const evs = getEventsForDate(new Date(d));
+    if (!evs.length) continue;
+    const m = d.getMonth() + 1, day = d.getDate(), w = YOUBI_JP[d.getDay()];
+    text += `\n■ ${m}月${day}日（${w}）\n`;
+    evs.forEach(ev => {
+      text += `- ${ev.name}　${formatAmPm(ev.start)}〜${formatAmPm(ev.end)}${durStr(ev.start, ev.end)}\n`;
+    });
+  }
+
+  document.getElementById('exportOverlay').classList.remove('open');
 
   navigator.clipboard.writeText(text).then(() => {
     alert('コピーしました！\nClaudeに貼り付けて分析してもらえます。');
@@ -2367,11 +2504,18 @@ function exportSchedule() {
     overlay.innerHTML = `
       <div style="background:#fff;border-radius:16px;padding:24px;width:90%;max-width:480px;max-height:80vh;overflow-y:auto;">
         <div style="font-size:15px;font-weight:900;margin-bottom:12px;">📋 よていデータ（コピーしてください）</div>
-        <textarea readonly style="width:100%;height:200px;border:1.5px solid #E4E4E4;border-radius:8px;padding:10px;font-size:13px;font-family:inherit;resize:none;">${text}</textarea>
+        <textarea readonly style="width:100%;height:240px;border:1.5px solid #E4E4E4;border-radius:8px;padding:10px;font-size:12px;font-family:inherit;resize:none;">${text}</textarea>
         <button onclick="this.closest('div').parentElement.remove()" style="margin-top:12px;width:100%;padding:10px;border-radius:10px;border:none;background:#2B6EFF;color:#fff;font-family:inherit;font-size:14px;font-weight:900;cursor:pointer;">とじる</button>
       </div>`;
     document.body.appendChild(overlay);
   });
+}
+
+function toggleNowNextFullscreen() {
+  const overlay = document.getElementById('nnFullscreen');
+  overlay.classList.toggle('open');
+  const btn = document.getElementById('nnExpandBtn');
+  if (btn) btn.textContent = overlay.classList.contains('open') ? '✕' : '⤢';
 }
 
 function switchTab(tab) {
