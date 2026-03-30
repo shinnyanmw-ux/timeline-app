@@ -1461,9 +1461,23 @@ body {
   <div class="modal" style="max-width:320px">
     <button class="modal-close" id="editMenuClose">✕</button>
     <div class="modal-title" id="editMenuTitle"></div>
+
+    <!-- 繰り返し予定の場合のみ表示 -->
+    <div id="editMenuRepeatNote" style="display:none;font-size:12px;color:var(--muted);margin-bottom:12px;padding:8px 10px;background:var(--block-bg);border-radius:8px;">
+      🔁 毎週くりかえしの予定です
+    </div>
+
     <div class="edit-modal-btns">
-      <button class="edit-modal-btn edit"   onclick="openEditForm()">✏️ 編集する</button>
-      <button class="edit-modal-btn delete" onclick="deleteEvent()">🗑️ 削除する</button>
+      <button class="edit-modal-btn edit" onclick="openEditForm()">✏️ 編集する</button>
+      <button class="edit-modal-btn delete" id="editMenuDeleteBtn" onclick="showDeleteOptions()">🗑️ 削除する</button>
+    </div>
+
+    <!-- 削除オプション（繰り返し予定のみ） -->
+    <div id="editMenuDeleteOptions" style="display:none;margin-top:12px;display:none;flex-direction:column;gap:8px;">
+      <div style="font-size:12px;font-weight:700;color:var(--muted);margin-bottom:2px">どちらを削除しますか？</div>
+      <button onclick="deleteEvent('single')" style="padding:10px;border-radius:10px;border:1.5px solid var(--border);background:#FEF2F2;color:#E03535;font-family:inherit;font-size:13px;font-weight:700;cursor:pointer;">この日だけ削除</button>
+      <button onclick="deleteEvent('all')" style="padding:10px;border-radius:10px;border:1.5px solid #FECACA;background:#FEF2F2;color:#B91C1C;font-family:inherit;font-size:13px;font-weight:700;cursor:pointer;">すべての繰り返しを削除</button>
+      <button onclick="hideDeleteOptions()" style="padding:8px;border-radius:10px;border:none;background:var(--block-bg);font-family:inherit;font-size:12px;font-weight:700;color:var(--muted);cursor:pointer;">キャンセル</button>
     </div>
   </div>
 </div>
@@ -1526,6 +1540,8 @@ function getEventsForDate(date) {
       // 期間フィルター
       if (ev.repeatFrom && dStr < ev.repeatFrom) return false;
       if (ev.repeatTo   && dStr > ev.repeatTo)   return false;
+      // この日だけ除外
+      if (ev.exceptDates && ev.exceptDates.includes(dStr)) return false;
       return true;
     })
     .sort((a,b) => timeToMin(a.start) - timeToMin(b.start));
@@ -1661,8 +1677,34 @@ function buildSidebarList() {
       openEditForm(ev);
     });
     item.querySelector('.sidebar-event-del').addEventListener('click', () => {
-      if (confirm(`「${ev.name}」を削除しますか？`)) {
-        deleteEvent(ev);
+      const isRepeat = !ev.onceDate && ev.days && ev.days.length > 0;
+      if (isRepeat) {
+        const choice = confirm(
+          `「${ev.name}」を削除します。\n\nOK → この日だけ削除\nキャンセル → すべての繰り返しを削除`
+        );
+        // confirmはOK=true, cancel=false
+        editingIndex = -1;
+        // 該当日を特定するためにdateからdStrを取得
+        const dStr2 = dateStr(date);
+        const idx2 = allEvents.findIndex(e =>
+          e.name === ev.name && e.start === ev.start && e.end === ev.end &&
+          JSON.stringify(e.days) === JSON.stringify(ev.days)
+        );
+        if (choice) {
+          // この日だけ削除
+          if (idx2 >= 0) {
+            if (!allEvents[idx2].exceptDates) allEvents[idx2].exceptDates = [];
+            if (!allEvents[idx2].exceptDates.includes(dStr2)) allEvents[idx2].exceptDates.push(dStr2);
+            saveData();
+          }
+        } else {
+          // 全削除
+          if (idx2 >= 0) { allEvents.splice(idx2, 1); saveData(); }
+        }
+        events = getEventsForDate(selectedDate);
+        buildTimeline(); buildMonthCalendar(); buildSidebarList();
+      } else if (confirm(`「${ev.name}」を削除しますか？`)) {
+        deleteEvent('all', ev);
         buildSidebarList();
       }
     });
@@ -1972,29 +2014,95 @@ function openEditMenu(evIndex) {
   editingIndex = evIndex;
   const ev = events[evIndex];
   document.getElementById('editMenuTitle').textContent = ev.emoji + ' ' + ev.name;
+
+  // 繰り返し予定かどうか
+  const isRepeat = !ev.onceDate && ev.days && ev.days.length > 0;
+  document.getElementById('editMenuRepeatNote').style.display = isRepeat ? 'block' : 'none';
+  document.getElementById('editMenuDeleteOptions').style.display = 'none';
+  document.getElementById('editMenuDeleteBtn').style.display = 'block';
   document.getElementById('editMenuOverlay').classList.add('open');
 }
 
-function deleteEvent(evOverride = null) {
-  const ev = evOverride || events[editingIndex];
-  // allEventsから完全一致で削除
+function showDeleteOptions() {
+  const ev = events[editingIndex];
+  const isRepeat = !ev.onceDate && ev.days && ev.days.length > 0;
+  if (isRepeat) {
+    document.getElementById('editMenuDeleteBtn').style.display = 'none';
+    document.getElementById('editMenuDeleteOptions').style.display = 'flex';
+  } else {
+    deleteEvent('all');
+  }
+}
+
+function hideDeleteOptions() {
+  document.getElementById('editMenuDeleteBtn').style.display = 'block';
+  document.getElementById('editMenuDeleteOptions').style.display = 'none';
+}
+
+function deleteEvent(mode = 'all', evOverride = null) {
+  const ev     = evOverride || events[editingIndex];
+  const dStr   = dateStr(selectedDate);
+  const isRepeat = !ev.onceDate && ev.days && ev.days.length > 0;
+
   const idx = allEvents.findIndex(e =>
     e.name === ev.name && e.start === ev.start && e.end === ev.end &&
     JSON.stringify(e.days) === JSON.stringify(ev.days) &&
     (e.onceDate || '') === (ev.onceDate || '')
   );
-  if (idx >= 0) {
+
+  if (mode === 'single' && isRepeat && idx >= 0) {
+    // この日だけ除外：exceptDatesに追加
+    if (!allEvents[idx].exceptDates) allEvents[idx].exceptDates = [];
+    if (!allEvents[idx].exceptDates.includes(dStr)) {
+      allEvents[idx].exceptDates.push(dStr);
+    }
+    saveData();
+  } else if (idx >= 0) {
+    // 全削除
     allEvents.splice(idx, 1);
     saveData();
   }
+
   document.getElementById('editMenuOverlay').classList.remove('open');
   events = getEventsForDate(selectedDate);
   buildTimeline(); buildMonthCalendar(); buildSidebarList();
 }
 
 function openEditForm(evOverride = null) {
+  const ev = evOverride || events[editingIndex];
+  const isRepeat = !ev.onceDate && ev.days && ev.days.length > 0;
   document.getElementById('editMenuOverlay').classList.remove('open');
-  openAddModal(evOverride || events[editingIndex]);
+
+  if (isRepeat) {
+    // 繰り返し予定の編集：この日だけ編集するか全体を編集するか確認
+    const choice = confirm(
+      `「${ev.name}」の編集方法を選んでください。\n\n` +
+      `OK → この日（${dateStr(selectedDate)}）だけ編集\n` +
+      `キャンセル → すべての繰り返しを編集`
+    );
+    if (choice) {
+      // この日だけ編集：exceptDatesに追加＋onceDate予定として開く
+      const idx = allEvents.findIndex(e =>
+        e.name === ev.name && e.start === ev.start && e.end === ev.end &&
+        JSON.stringify(e.days) === JSON.stringify(ev.days)
+      );
+      if (idx >= 0) {
+        if (!allEvents[idx].exceptDates) allEvents[idx].exceptDates = [];
+        if (!allEvents[idx].exceptDates.includes(dateStr(selectedDate))) {
+          allEvents[idx].exceptDates.push(dateStr(selectedDate));
+        }
+        saveData();
+      }
+      // この日限定の予定として編集フォームを開く
+      const onceDayEv = { ...ev, days: [], onceDate: dateStr(selectedDate), exceptDates: undefined };
+      editingIndex = -1;
+      openAddModal(onceDayEv);
+    } else {
+      openAddModal(ev);
+    }
+  } else {
+    openAddModal(ev);
+  }
 }
 
 document.getElementById('editMenuOverlay').addEventListener('click', e => {
